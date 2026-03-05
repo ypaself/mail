@@ -1,0 +1,41 @@
+{
+  "name": "mail",
+  "version": "1.0.0",
+  "description": "A modern web-based mail app inspired by Gmail. Built with React (frontend) and Node.js/Express (backend), supporting IMAP/SMTP integration.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "server:dev": "nodemon --watch server --ext ts --exec ts-node --project server/tsconfig.json server/index.ts",
+    "server:start": "ts-node --project server/tsconfig.json server/index.ts",
+    "server:build": "tsc --project server/tsconfig.json",
+    "server:serve": "node server/dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "imap-simple": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^8.0.1",
+    "pg": "^8.19.0",
+    "react-router-dom": "^6.30.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.3.2",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pg": "^8.16.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
