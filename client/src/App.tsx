@@ -79,6 +79,7 @@ function App() {
   const [resetEmail, setResetEmail] = useState<string>('')
   const [resetToken, setResetToken] = useState<string>('')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false)
   const [moreExpanded, setMoreExpanded] = useState(false)
   const [activeApp, setActiveApp] = useState<'mail' | 'calendar' | 'contacts' | 'groups' | 'notes' | 'sheets' | 'docs' | 'more'>('mail')
   const [activeSidebarSection, setActiveSidebarSection] = useState<string>('inbox')
@@ -532,8 +533,18 @@ function App() {
             {activeApp === 'mail' && (
             <div
               className={`left-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
-              onMouseEnter={() => sidebarCollapsed && setSidebarCollapsed(false)}
-              onMouseLeave={() => setSidebarCollapsed(true)}
+              onMouseEnter={() => {
+                if (sidebarCollapsed) {
+                  setSidebarCollapsed(false)
+                  setSidebarHoverExpanded(true)
+                }
+              }}
+              onMouseLeave={() => {
+                if (sidebarHoverExpanded) {
+                  setSidebarCollapsed(true)
+                  setSidebarHoverExpanded(false)
+                }
+              }}
             >
               <div className="compose-btn-container">
                 <button className="compose-btn" onClick={() => navigate('/compose')}>
