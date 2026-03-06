@@ -4569,14 +4569,14 @@ textarea {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0 !important;
-  height: 36px !important;
-  width: auto !important;
-  max-width: 166px !important;
-  margin-top: 1px !important;
-  margin-right: 14px !important;
-  margin-bottom: 1px !important;
-  margin-left: 14px !important;
+  gap: 0;
+  height: 36px;
+  width: auto;
+  max-width: 166px;
+  margin-top: 1px;
+  margin-right: 14px;
+  margin-bottom: 1px;
+  margin-left: 14px;
   border-radius: 24px;
   transition: background-color 0.3s ease;
 }
@@ -4798,46 +4798,16 @@ textarea {
 
 /* Child Label Styling */
 .sidebar-label-item-wrapper.child-label {
-  position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  padding: 0 !important;
   padding-left: 20px !important;
-  margin-top: 1px !important;
-  margin-right: 14px !important;
-  margin-bottom: 1px !important;
-  margin-left: 14px !important;
-  height: 36px !important;
-  width: auto !important;
-  max-width: 166px !important;
-  gap: 0 !important;
-  border-radius: 24px !important;
-  transition: background-color 0.3s ease !important;
-  justify-content: flex-start !important;
 }
 
 .sidebar-label-item-wrapper.child-label .label-icon {
-  display: inline-block !important;
-  width: 20px !important;
-  height: 20px !important;
-  margin-right: 8px !important;
-  margin-left: 8px !important;
-  flex-shrink: 0 !important;
-  transition: all 0.2s ease !important;
-  opacity: 0.8 !important;
-}
-
-.sidebar-label-item-wrapper.child-label:hover .label-icon {
-  opacity: 1 !important;
-  transform: scale(1.05) !important;
+  opacity: 0.7;
 }
 
 /* Align child labels with parent's toggle button space */
 .label-group .sidebar-label-item-wrapper.child-label {
-  margin-left: 14px !important;
-  margin-top: 1px !important;
-  margin-right: 14px !important;
-  margin-bottom: 1px !important;
+  margin-left: 0;
 }
 
 /* Collapsed sidebar: hide child labels */
