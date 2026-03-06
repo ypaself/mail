@@ -4798,7 +4798,14 @@ textarea {
 
 /* Child Label Styling */
 .sidebar-label-item-wrapper.child-label {
-  padding-left: 30px;
+  padding-left: 30px !important;
+  margin-top: 1px !important;
+  margin-right: 14px !important;
+  margin-bottom: 1px !important;
+  margin-left: 14px !important;
+  height: 36px !important;
+  width: auto !important;
+  max-width: 166px !important;
 }
 
 .sidebar-label-item-wrapper.child-label .label-icon {
@@ -4807,7 +4814,10 @@ textarea {
 
 /* Align child labels with parent's toggle button space */
 .label-group .sidebar-label-item-wrapper.child-label {
-  margin-left: 0;
+  margin-left: 14px !important;
+  margin-top: 1px !important;
+  margin-right: 14px !important;
+  margin-bottom: 1px !important;
 }
 
 /* Collapsed sidebar: hide child labels */
