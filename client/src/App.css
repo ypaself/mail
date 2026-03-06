@@ -1142,7 +1142,7 @@ body {
   grid-row: 2;
   padding: 0 !important;
   width: 99% !important;
-  height: calc(99% - 60px) !important;
+  height: calc(99%) !important;
   min-width: 250px !important;
   max-width: 99% !important;
   min-height: 200px !important;
@@ -1929,7 +1929,7 @@ body {
   grid-column: 1;
   grid-row: 2;
   width: 50px !important;
-  height: calc(99% - 60px) !important;
+  height: calc(99%) !important;
   min-width: 50px !important;
   max-width: 50px !important;
   min-height: 240px !important;
