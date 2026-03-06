@@ -4797,8 +4797,21 @@ textarea {
 }
 
 /* Child Label Styling */
-.sidebar-label-item-wrapper.child-label {
+.sidebar-label-item-wrapper .child-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0 !important;
+  height: 36px !important;
+  width: auto !important;
+  max-width: 166px !important;
+  margin-top: 1px !important;
+  margin-right: 14px !important;
   padding-left: 20px !important;
+  margin-bottom: 1px !important;
+  margin-left: 14px !important;
+  border-radius: 24px;
+  transition: background-color 0.3s ease;
 }
 
 .sidebar-label-item-wrapper.child-label .label-icon {
