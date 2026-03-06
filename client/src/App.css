@@ -4817,7 +4817,19 @@ textarea {
 }
 
 .sidebar-label-item-wrapper.child-label .label-icon {
+  display: inline-block !important;
+  width: 20px !important;
+  height: 20px !important;
+  margin-right: 8px !important;
+  margin-left: 8px !important;
+  flex-shrink: 0 !important;
+  transition: all 0.2s ease !important;
+  opacity: 0.8 !important;
+}
+
+.sidebar-label-item-wrapper.child-label:hover .label-icon {
   opacity: 1 !important;
+  transform: scale(1.05) !important;
 }
 
 /* Align child labels with parent's toggle button space */
