@@ -251,11 +251,6 @@ function App() {
     handleSidebarSection('purchases')
     navigate('/purchased')
   }
-  const handleGroupsSidebarClick = () => {
-    setActiveApp('groups')
-    setMenuButtonClicked(true)
-    setSidebarCollapsed(false)
-  }
   const handleAllMailsClick = () => {
     handleSidebarSection('all-mails')
     navigate('/allmails')
@@ -534,8 +529,12 @@ function App() {
               </button>
             </div>
 
-            {(activeApp === 'mail' || activeApp === 'groups') && (
-            <div className={`left-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+            {activeApp === 'mail' && (
+            <div
+              className={`left-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}
+              onMouseEnter={() => sidebarCollapsed && setSidebarCollapsed(false)}
+              onMouseLeave={() => setSidebarCollapsed(true)}
+            >
               <div className="compose-btn-container">
                 <button className="compose-btn" onClick={() => navigate('/compose')}>
                   <Edit3 size={20} />
@@ -548,104 +547,89 @@ function App() {
               </div>
 
               <div className="sidebar-menu">
-              {/* Main Navigation Section - Only show in mail view */}
-              {activeApp === 'mail' && (
-                <div className="sidebar-section">
-                  <button className={`sidebar-item ${activeSidebarSection === 'inbox' ? 'active' : ''}`} title="Inbox" onClick={handleInboxClick}>
-                    <Inbox size={20} />
-                    <span>Inbox</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'sent' ? 'active' : ''}`} title="Sent" onClick={handleSentClick}>
-                    <Send size={20} />
-                    <span>Sent</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'starred' ? 'active' : ''}`} title="Starred" onClick={handleStarredClick}>
-                    <Star size={20} />
-                    <span>Starred</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'snoozed' ? 'active' : ''}`} title="Snoozed" onClick={handleSnoozedClick}>
-                    <Clock size={20} />
-                    <span>Snoozed</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'drafts' ? 'active' : ''}`} title="Drafts" onClick={handleDraftsClick}>
-                    <FileText size={20} />
-                    <span>Drafts</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'archive' ? 'active' : ''}`} title="Archive" onClick={handleArchiveClick}>
-                    <Archive size={20} />
-                    <span>Archive</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'purchases' ? 'active' : ''}`} title="Purchases" onClick={handlePurchasesClick}>
-                    <ShoppingBag size={20} />
-                    <span>Purchases</span>
-                  </button>
-                </div>
-              )}
+              {/* Main Navigation Section */}
+              <div className="sidebar-section">
+                <button className={`sidebar-item ${activeSidebarSection === 'inbox' ? 'active' : ''}`} title="Inbox" onClick={handleInboxClick}>
+                  <Inbox size={20} />
+                  <span>Inbox</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'sent' ? 'active' : ''}`} title="Sent" onClick={handleSentClick}>
+                  <Send size={20} />
+                  <span>Sent</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'starred' ? 'active' : ''}`} title="Starred" onClick={handleStarredClick}>
+                  <Star size={20} />
+                  <span>Starred</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'snoozed' ? 'active' : ''}`} title="Snoozed" onClick={handleSnoozedClick}>
+                  <Clock size={20} />
+                  <span>Snoozed</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'drafts' ? 'active' : ''}`} title="Drafts" onClick={handleDraftsClick}>
+                  <FileText size={20} />
+                  <span>Drafts</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'archive' ? 'active' : ''}`} title="Archive" onClick={handleArchiveClick}>
+                  <Archive size={20} />
+                  <span>Archive</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'purchases' ? 'active' : ''}`} title="Purchases" onClick={handlePurchasesClick}>
+                  <ShoppingBag size={20} />
+                  <span>Purchases</span>
+                </button>
+              </div>
 
-              {/* More Section Toggle - Only show in mail view */}
-              {activeApp === 'mail' && (
-                <div className={`sidebar-item more-toggle ${moreExpanded ? 'expanded' : ''}`}>
-                  <button onClick={() => setMoreExpanded(!moreExpanded)}>
-                    {moreExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                    <span>{moreExpanded ? 'Less' : 'More'}</span>
-                  </button>
-                </div>
-              )}
+              {/* More Section Toggle */}
+              <div className={`sidebar-item more-toggle ${moreExpanded ? 'expanded' : ''}`}>
+                <button onClick={() => setMoreExpanded(!moreExpanded)}>
+                  {moreExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                  <span>{moreExpanded ? 'Less' : 'More'}</span>
+                </button>
+              </div>
 
-              {/* More Section - Initially Hidden, Only show in mail view */}
-              {activeApp === 'mail' && (
-                <div className={`sidebar-section more-section ${moreExpanded ? 'expanded' : ''}`}>
-                  <button className={`sidebar-item ${activeSidebarSection === 'all-mails' ? 'active' : ''}`} title="All Mails" onClick={handleAllMailsClick}>
-                    <Mail size={20} />
-                    <span>All Mails</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'scheduled' ? 'active' : ''}`} title="Scheduled" onClick={handleScheduledClick}>
-                    <Calendar size={20} />
-                    <span>Scheduled</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'important' ? 'active' : ''}`} title="Important" onClick={handleImportantClick}>
-                    <Flag size={20} />
-                    <span>Important</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'spam' ? 'active' : ''}`} title="Spam" onClick={handleSpamClick}>
-                    <AlertCircle size={20} />
-                    <span>Spam</span>
-                  </button>
-                  <button className={`sidebar-item ${activeSidebarSection === 'trash' ? 'active' : ''}`} title="Trash" onClick={handleTrashClick}>
-                    <Trash2 size={20} />
-                    <span>Trash</span>
-                  </button>
-                  <button className="sidebar-item" title="Manage Subscription" onClick={handleManageSubscriptionClick}>
-                    <Bell size={20} />
-                    <span>Manage Subscription</span>
-                  </button>
-                  <button className="sidebar-item" title="Manage Labels" onClick={handleManageLabelsClick}>
-                    <Settings size={20} />
-                    <span>Manage Labels</span>
-                  </button>
-                </div>
-              )}
+              {/* More Section - Initially Hidden */}
+              <div className={`sidebar-section more-section ${moreExpanded ? 'expanded' : ''}`}>
+                <button className={`sidebar-item ${activeSidebarSection === 'all-mails' ? 'active' : ''}`} title="All Mails" onClick={handleAllMailsClick}>
+                  <Mail size={20} />
+                  <span>All Mails</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'scheduled' ? 'active' : ''}`} title="Scheduled" onClick={handleScheduledClick}>
+                  <Calendar size={20} />
+                  <span>Scheduled</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'important' ? 'active' : ''}`} title="Important" onClick={handleImportantClick}>
+                  <Flag size={20} />
+                  <span>Important</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'spam' ? 'active' : ''}`} title="Spam" onClick={handleSpamClick}>
+                  <AlertCircle size={20} />
+                  <span>Spam</span>
+                </button>
+                <button className={`sidebar-item ${activeSidebarSection === 'trash' ? 'active' : ''}`} title="Trash" onClick={handleTrashClick}>
+                  <Trash2 size={20} />
+                  <span>Trash</span>
+                </button>
+                <button className="sidebar-item" title="Manage Subscription" onClick={handleManageSubscriptionClick}>
+                  <Bell size={20} />
+                  <span>Manage Subscription</span>
+                </button>
+                <button className="sidebar-item" title="Manage Labels" onClick={handleManageLabelsClick}>
+                  <Settings size={20} />
+                  <span>Manage Labels</span>
+                </button>
+              </div>
 
-              {/* Labels Section - Only show in mail view */}
-              {activeApp === 'mail' && (
-                <>
-                  <div className="sidebar-section-label">
-                    <span>Labels</span>
-                    <button className="add-btn" title="Add Label" onClick={handleAddLabelClick}><Plus size={20} /></button>
-                  </div>
-                  <div className="sidebar-section labels-section">
-                    {customLabels.map(label => renderLabelNode(label, 0))}
-                  </div>
-                </>
-              )}
+              {/* Labels Section */}
+              <div className="sidebar-section-label">
+                <span>Labels</span>
+                <button className="add-btn" title="Add Label" onClick={handleAddLabelClick}><Plus size={20} /></button>
+              </div>
+
+              <div className="sidebar-section labels-section">
+                {customLabels.map(label => renderLabelNode(label, 0))}
+              </div>
 
             </div>
-
-            {/* Groups Button - Always visible at bottom of sidebar (outside scroll area) */}
-            <button className={`sidebar-item ${activeApp === 'groups' ? 'active' : ''}`} title="Groups" onClick={handleGroupsSidebarClick}>
-              <Users size={20} />
-              <span>Groups</span>
-            </button>
             </div>
             )}
 

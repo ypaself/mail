@@ -7,7 +7,7 @@
 
 .left-sidebar.collapsed .sidebar-section.more-section {
   height: auto;
-  width: 62px!important;
+  width: 64px!important;
   margin: 1px;
   display: none;
 }
@@ -15,8 +15,11 @@
 /* Show more-section when expanded in collapsed sidebar */
 .left-sidebar.collapsed .sidebar-section.more-section.expanded {
   height: auto;
-  width: 62px!important;
-  margin: 1px;
+  width: 64px!important;
+  margin-top: 2px;
+  margin-right: 1px;
+  margin-bottom: 1px;
+  margin-left: 1px;
   display: flex;
   flex-direction: column;
 }
@@ -29,9 +32,9 @@
   max-width: 36px !important;
   border-radius: 50%;
   margin-top: 1px;
-  margin-right: 13px;
+  margin-right: 14px;
   margin-bottom: 1px;
-  margin-left: 13px;
+  margin-left: 14px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -64,9 +67,9 @@
   height: 36px !important;
   width: 36px !important;
   margin-top: 1px;
-  margin-right: 13px;
+  margin-right: 14px;
   margin-bottom: 1px;
-  margin-left: 13px;
+  margin-left: 14px;
   background-color: #e8e8e8 !important;
   color: #333;
   border-radius: 50%;
@@ -557,9 +560,9 @@
 .left-sidebar.collapsed .sidebar-item.more-toggle.expanded button {
   height: 20px;
   width: 20px;
-  margin-top: 1px;
+  margin-top: 2.5px;
   margin-right: 22px;
-  margin-bottom: 1px;
+  margin-bottom: 2.5px;
   margin-left: 22px;
   padding: 0;
   display: flex;
@@ -594,15 +597,19 @@
 
 .left-sidebar.collapsed .sidebar-item.more-toggle button:hover,
 .left-sidebar.collapsed .sidebar-item.more-toggle.expanded button:hover {
-  background-color: white !important;
+  margin-top: 2.5px;
+  margin-bottom: 2px;
+  background-color: #e8e8e8 !important;
   border: 0.5px solid #888888 !important;
   color: #333;
   border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
 }
 
 .left-sidebar.collapsed .sidebar-item.more-toggle button:active,
 .left-sidebar.collapsed .sidebar-item.more-toggle.expanded button:active {
+  margin-top: 2.5px;
+  margin-bottom: 2px;
   background-color: white !important;
   border: 0.5px solid #888888 !important;
   color: #fff;
@@ -612,6 +619,8 @@
 
 .left-sidebar.collapsed .sidebar-item.more-toggle button:active:hover,
 .left-sidebar.collapsed .sidebar-item.more-toggle.expanded button:active:hover {
+  margin-top: 2.5px;
+  margin-bottom: 2px;
   background-color: #f9f9f9 !important;
   border: 0.5px solid #888888 !important;
   color: #333;
@@ -821,7 +830,7 @@ body {
 
 .sidebar-section.more-section {
   height: auto;
-  width: 192px;
+  width: 194px;
   margin: 1px;
   display: none;
 }
@@ -829,8 +838,11 @@ body {
 /* Show more-section when expanded */
 .sidebar-section.more-section.expanded {
   height: auto;
-  width: 192px;
-  margin: 1px;
+  width: 194px;
+  margin-top: 2px;
+  margin-right: 1px;
+  margin-bottom: 1px;
+  margin-left: 1px;
   display: flex;
   flex-direction: column;
 }
@@ -841,9 +853,9 @@ body {
   width: 166px;
   border-radius: 24px;
   margin-top: 1px;
-  margin-right: 13px;
+  margin-right: 14px;
   margin-bottom: 1px;
-  margin-left: 13px;
+  margin-left: 14px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -1670,9 +1682,9 @@ body {
   height: 20px;
   width: 166px;
   border-radius: 24px;
-  margin-top: 1px;
+  margin-top: 2.5px;
   margin-right: 14px;
-  margin-bottom: 1px;
+  margin-bottom: 2.5px;
   margin-left: 14px;
   padding: 0 8px;
   display: flex;
@@ -1713,9 +1725,9 @@ body {
 .sidebar-item.more-toggle.expanded button:hover {
   height: 20px;
   width: 166px;
-  margin-top: 1px;
+  margin-top: 2.5px;
   margin-right: 14px;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
   margin-left: 14px;
   background-color: #e8e8e8 !important;
   color: #333;
@@ -1727,9 +1739,9 @@ body {
 .sidebar-item.more-toggle.expanded button:active {
   height: 20px;
   width: 166px;
-  margin-top: 1px;
+  margin-top: 2.5px;
   margin-right: 14px;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
   margin-left: 14px;
   background-color: white !important;
   border: 0.5px solid #888888 !important;
@@ -1742,9 +1754,9 @@ body {
 .sidebar-item.more-toggle.expanded button:active:hover {
   height: 20px;
   width: 166px;
-  margin-top: 1px;
+  margin-top: 2.5px;
   margin-right: 14px;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
   margin-left: 14px;
   background-color: #f9f9f9 !important;
   border: 0.5px solid #888888 !important;
@@ -5228,435 +5240,6 @@ textarea {
   outline: none;
   border-color: #9c27b0;
   box-shadow: 0 0 8px rgba(156, 39, 176, 0.15);
-}
-
-/* Groups Button - At bottom of left-sidebar (not in scrollable menu) */
-.left-sidebar > .sidebar-item {
-  height: 36px;
-  width: 166px;
-  border-radius: 24px;
-  margin-top: auto;
-  margin-right: 14px;
-  margin-bottom: 10px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background: none;
-  border: none;
-  color: #333;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  overflow: hidden;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.left-sidebar > .sidebar-item svg {
-  width: 20px;
-  height: 20px;
-  margin-left: 8px;
-  margin-right: 8px;
-  flex-shrink: 0;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-.left-sidebar > .sidebar-item span {
-  opacity: 1;
-  transition: opacity 0.3s ease 0.1s;
-}
-
-/* Groups Button - Hover State */
-.left-sidebar > .sidebar-item:hover {
-  height: 36px;
-  width: 166px;
-  margin-top: 8px;
-  margin-right: 14px;
-  margin-bottom: 10px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: #e8e8e8 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
-}
-
-.left-sidebar > .sidebar-item:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Active State */
-.left-sidebar > .sidebar-item.active {
-  height: 36px;
-  width: 166px;
-  margin-top: 8px;
-  margin-right: 14px;
-  margin-bottom: 10px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: white !important;
-  border: 0.5px solid #888888 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-.left-sidebar > .sidebar-item.active svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Active:Hover State */
-.left-sidebar > .sidebar-item.active:hover {
-  height: 36px;
-  width: 166px;
-  margin-top: 8px;
-  margin-right: 14px;
-  margin-bottom: 10px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: #f9f9f9 !important;
-  border: 0.5px solid #888888 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.left-sidebar > .sidebar-item.active:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Collapsed View */
-.left-sidebar.collapsed > .sidebar-item {
-  height: 36px !important;
-  width: 36px !important;
-  min-width: 36px !important;
-  max-width: 36px !important;
-  border-radius: 50%;
-  margin-top: auto;
-  margin-right: 13px;
-  margin-bottom: 10px;
-  margin-left: 13px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  background: none;
-  border: none;
-  color: #333;
-  cursor: pointer;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease, border 0.3s ease, width 0.3s ease, border-radius 0.3s ease, justify-content 0.3s ease;
-  flex-shrink: 0;
-}
-
-.left-sidebar.collapsed > .sidebar-item svg {
-  width: 20px!important;
-  height: 20px!important;
-  margin-left: 8px!important;
-  margin-right: 8px!important;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-.left-sidebar.collapsed > .sidebar-item span {
-  display: none;
-}
-
-/* Groups Button - Collapsed Hover State */
-.left-sidebar.collapsed > .sidebar-item:hover {
-  height: 36px !important;
-  width: 36px !important;
-  margin-top: 8px;
-  margin-right: 13px;
-  margin-bottom: 10px;
-  margin-left: 13px;
-  background-color: #e8e8e8 !important;
-  color: #333;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
-}
-
-.left-sidebar.collapsed > .sidebar-item:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Collapsed Active State */
-.left-sidebar.collapsed > .sidebar-item.active {
-  background-color: white !important;
-  border: 0.5px solid #888888 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-.left-sidebar.collapsed > .sidebar-item.active svg {
-  color: #ff4444;
-  stroke: #ff4444;
-  stroke-width: 2;
-  font-weight: 900;
-  fill: white;
-}
-
-/* Groups Button - Collapsed Active:Hover State */
-.left-sidebar.collapsed > .sidebar-item.active:hover {
-  background-color: #f9f9f9 !important;
-  border: 0.5px solid #888888 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.left-sidebar.collapsed > .sidebar-item.active:hover svg {
-  color: #ff4444;
-  stroke: #ff4444;
-  stroke-width: 2;
-  font-weight: 900;
-  fill: white;
-}
-
-/* Groups Button - Regular View */
-.sidebar-menu > .sidebar-item {
-  height: 36px;
-  width: 166px;
-  border-radius: 24px;
-  margin-top: 1px;
-  margin-right: 14px;
-  margin-bottom: 1px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background: none;
-  border: none;
-  color: #333;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.sidebar-menu > .sidebar-item svg {
-  width: 20px;
-  height: 20px;
-  margin-left: 8px;
-  margin-right: 8px;
-  flex-shrink: 0;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-.sidebar-menu > .sidebar-item span {
-  opacity: 1;
-  transition: opacity 0.3s ease 0.1s;
-}
-
-/* Groups Button - Hover State */
-.sidebar-menu > .sidebar-item:hover {
-  height: 36px;
-  width: 166px;
-  margin-top: 1px;
-  margin-right: 14px;
-  margin-bottom: 1px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: #e8e8e8 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
-}
-
-.sidebar-menu > .sidebar-item:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Active State */
-.sidebar-menu > .sidebar-item.active {
-  height: 36px;
-  width: 166px;
-  margin-top: 1px;
-  margin-right: 14px;
-  margin-bottom: 1px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: white !important;
-  border: 0.5px solid #888888 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-.sidebar-menu > .sidebar-item.active svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Active:Hover State */
-.sidebar-menu > .sidebar-item.active:hover {
-  height: 36px;
-  width: 166px;
-  margin-top: 1px;
-  margin-right: 14px;
-  margin-bottom: 1px;
-  margin-left: 14px;
-  display: flex;
-  align-items: center;
-  background-color: #f9f9f9 !important;
-  border: 0.5px solid #888888 !important;
-  color: #333;
-  border-radius: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.sidebar-menu > .sidebar-item.active:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  margin-left: 8px;
-  margin-right: 8px;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Collapsed View */
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item {
-  height: 36px !important;
-  width: 36px !important;
-  min-width: 36px !important;
-  max-width: 36px !important;
-  border-radius: 50%;
-  margin-top: 1px;
-  margin-right: 13px;
-  margin-bottom: 1px;
-  margin-left: 13px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
-  background: none;
-  border: none;
-  color: #333;
-  cursor: pointer;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease, border 0.3s ease, width 0.3s ease, border-radius 0.3s ease, justify-content 0.3s ease;
-  flex-shrink: 0;
-}
-
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item svg {
-  width: 20px!important;
-  height: 20px!important;
-  margin-left: 8px!important;
-  margin-right: 8px!important;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item span {
-  display: none;
-}
-
-/* Groups Button - Collapsed Hover State */
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item:hover {
-  height: 36px !important;
-  width: 36px !important;
-  margin-top: 1px;
-  margin-right: 13px;
-  margin-bottom: 1px;
-  margin-left: 13px;
-  background-color: #e8e8e8 !important;
-  color: #333;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
-}
-
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item:hover svg {
-  width: 20px !important;
-  height: 20px !important;
-  color: black;
-  stroke: black;
-  stroke-width: 1.5;
-  font-weight: 900;
-}
-
-/* Groups Button - Collapsed Active State */
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item.active {
-  background-color: white !important;
-  border: 0.5px solid #888888 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
-}
-
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item.active svg {
-  color: #ff4444;
-  stroke: #ff4444;
-  stroke-width: 2;
-  font-weight: 900;
-  fill: white;
-}
-
-/* Groups Button - Collapsed Active:Hover State */
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item.active:hover {
-  background-color: #f9f9f9 !important;
-  border: 0.5px solid #888888 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.left-sidebar.collapsed .sidebar-menu > .sidebar-item.active:hover svg {
-  color: #ff4444;
-  stroke: #ff4444;
-  stroke-width: 2;
-  font-weight: 900;
-  fill: white;
 }
 
 /* Responsive: Auto-collapse sidebar when width < 350px */
