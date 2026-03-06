@@ -4806,10 +4806,11 @@ textarea {
   height: 36px !important;
   width: auto !important;
   max-width: 166px !important;
+  gap: 0 !important;
 }
 
 .sidebar-label-item-wrapper.child-label .label-icon {
-  opacity: 0.7;
+  opacity: 1 !important;
 }
 
 /* Align child labels with parent's toggle button space */
