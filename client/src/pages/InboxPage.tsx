@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Star, Clock, Archive, ShoppingCart, AlertCircle, Trash2, RotateCcw, LogOut, Tag } from 'lucide-react'
-import { emailTemplates } from '../components/EmailTemplates'
+import { Star, Search } from 'lucide-react'
 
 interface Email {
   id?: number
@@ -12,17 +11,36 @@ interface Email {
   template?: string
   isStarred?: boolean
   isSnoozed?: boolean
+  isRead?: boolean
+}
+
+interface SearchFilters {
+  from: string
+  to: string
+  cc: string
+  bcc: string
+  subject: string
+  keywords: string
+  hasAttachment: boolean
+  dateFrom: string
+  dateTo: string
+  readStatus: 'all' | 'read' | 'unread'
+  category: string
 }
 
 interface InboxPageProps {
   token: string
   onViewEmail: (email: Email) => void
+  searchQuery?: string
+  searchFilters?: SearchFilters
 }
 
-export default function InboxPage({ token, onViewEmail }: InboxPageProps) {
+export default function InboxPage({ token, onViewEmail, searchQuery = '', searchFilters }: InboxPageProps) {
   const [inboxEmails, setInboxEmails] = useState<Email[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showSearchOptions, setShowSearchOptions] = useState(false)
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery)
 
   useEffect(() => {
     fetchAllEmails()
@@ -42,27 +60,61 @@ export default function InboxPage({ token, onViewEmail }: InboxPageProps) {
       if (inboxResponse.ok && inboxData.emails && inboxData.emails.length > 0) {
         setInboxEmails(inboxData.emails)
       } else {
-        setInboxEmails(getSampleTemplates())
+        setInboxEmails([])
       }
     } catch (err) {
-      setInboxEmails(getSampleTemplates())
-      setError('Showing sample template emails')
+      setInboxEmails([])
+      setError('Failed to load inbox emails')
     } finally {
       setLoading(false)
     }
   }
 
-  const getSampleTemplates = () => {
-    return Object.entries(emailTemplates).map(([key, template]) => ({
-      ...template,
-      id: Math.random(),
-      template: key,
-    }))
-  }
+  // Filter emails based on search query and advanced filters
+  const filteredEmails = inboxEmails.filter(email => {
+    // Apply search query filter
+    if (localSearchQuery) {
+      const query = localSearchQuery.toLowerCase()
+      const matchesQuery = (
+        (email.subject || '').toLowerCase().includes(query) ||
+        (email.from || '').toLowerCase().includes(query) ||
+        (email.to || '').toLowerCase().includes(query) ||
+        (email.body || '').toLowerCase().includes(query)
+      )
+      if (!matchesQuery) return false
+    }
+
+    // Apply advanced filters
+    if (searchFilters) {
+      if (searchFilters.from && !(email.from || '').toLowerCase().includes(searchFilters.from.toLowerCase())) return false
+      if (searchFilters.to && !(email.to || '').toLowerCase().includes(searchFilters.to.toLowerCase())) return false
+      if (searchFilters.subject && !(email.subject || '').toLowerCase().includes(searchFilters.subject.toLowerCase())) return false
+      if (searchFilters.keywords && !(email.body || '').toLowerCase().includes(searchFilters.keywords.toLowerCase())) return false
+
+      if (searchFilters.readStatus !== 'all') {
+        if (searchFilters.readStatus === 'read' && !email.isRead) return false
+        if (searchFilters.readStatus === 'unread' && email.isRead) return false
+      }
+
+      if (searchFilters.dateFrom) {
+        const emailDate = new Date(email.date)
+        const filterDate = new Date(searchFilters.dateFrom)
+        if (emailDate < filterDate) return false
+      }
+
+      if (searchFilters.dateTo) {
+        const emailDate = new Date(email.date)
+        const filterDate = new Date(searchFilters.dateTo)
+        if (emailDate > filterDate) return false
+      }
+    }
+
+    return true
+  })
 
   const handleToggleStar = async (emailId: number | undefined, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!emailId || emailId < 0) return
+    if (!emailId) return
 
     try {
       const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
@@ -81,284 +133,65 @@ export default function InboxPage({ token, onViewEmail }: InboxPageProps) {
     }
   }
 
-  const handleToggleSnooze = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ hours: 1 }),
-      })
-
-      if (response.ok) {
-        // Remove the snoozed email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to snooze email:', err)
-    }
-  }
-
-  const handleArchive = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/archive`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the archived email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to archive email:', err)
-    }
-  }
-
-  const handlePurchase = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/purchase`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the purchased email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to mark as purchased:', err)
-    }
-  }
-
-  const handleSchedule = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    const scheduledFor = new Date(Date.now() + 24 * 60 * 60 * 1000) // Schedule for tomorrow
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/schedule`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ scheduledFor }),
-      })
-
-      if (response.ok) {
-        // Remove the scheduled email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to schedule email:', err)
-    }
-  }
-
-  const handleImportant = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/important`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the important email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to mark as important:', err)
-    }
-  }
-
-  const handleSpam = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/spam`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the spam email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to mark as spam:', err)
-    }
-  }
-
-  const handleDelete = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/delete`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the deleted email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to delete email:', err)
-    }
-  }
-
-  const handleSubscription = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/subscription`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the subscription email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to manage subscription:', err)
-    }
-  }
-
-  const handleLabel = async (emailId: number | undefined, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!emailId) return
-
-    try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/label`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        // Remove the labeled email from the inbox
-        setInboxEmails(inboxEmails.filter(email => email.id !== emailId))
-      }
-    } catch (err) {
-      console.error('Failed to manage label:', err)
-    }
-  }
 
   return (
     <div className="email-container">
+      <div className="mail-search-bar">
+        <div className="search-input-wrapper">
+          <Search size={18} className="search-icon" />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search mail..."
+            value={localSearchQuery}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
+          />
+          <button
+            className="search-options-btn"
+            onClick={() => setShowSearchOptions(!showSearchOptions)}
+            title="Advanced search options"
+          >
+            &#9776;
+          </button>
+        </div>
+      </div>
+
       {error && <div className="message error">{error}</div>}
 
       {loading && <div className="loading">Loading emails...</div>}
 
-      {inboxEmails.length > 0 && (
+      {filteredEmails.length > 0 && (
         <div className="email-list">
-          {inboxEmails.map((email, idx) => (
+          {filteredEmails.map((email, idx) => (
             <div
               key={idx}
               className="email-item"
               onClick={() => onViewEmail(email)}
             >
-              <div className="email-header">
-                <div className="email-from">
-                  <strong>{email.from}</strong>
-                  <button
-                    className={`star-btn ${email.isStarred ? 'active' : ''}`}
-                    onClick={(e) => handleToggleStar(email.id, e)}
-                    title={email.isStarred ? 'Remove star' : 'Add star'}
-                  >
-                    <Star size={18} fill={email.isStarred ? 'currentColor' : 'none'} />
-                  </button>
-                  <button
-                    className="snooze-btn"
-                    onClick={(e) => handleToggleSnooze(email.id, e)}
-                    title="Snooze for 1 hour"
-                  >
-                    <Clock size={18} />
-                  </button>
-                  <button
-                    className="archive-btn"
-                    onClick={(e) => handleArchive(email.id, e)}
-                    title="Archive"
-                  >
-                    <Archive size={18} />
-                  </button>
-                  <button
-                    className="purchase-btn"
-                    onClick={(e) => handlePurchase(email.id, e)}
-                    title="Mark as purchase"
-                  >
-                    <ShoppingCart size={18} />
-                  </button>
-                  <button
-                    className="schedule-btn"
-                    onClick={(e) => handleSchedule(email.id, e)}
-                    title="Schedule for tomorrow"
-                  >
-                    <Clock size={18} />
-                  </button>
-                  <button
-                    className="important-btn"
-                    onClick={(e) => handleImportant(email.id, e)}
-                    title="Mark as important"
-                  >
-                    <AlertCircle size={18} />
-                  </button>
-                  <button
-                    className="spam-btn"
-                    onClick={(e) => handleSpam(email.id, e)}
-                    title="Mark as spam"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                  <button
-                    className="delete-btn"
-                    onClick={(e) => handleDelete(email.id, e)}
-                    title="Delete"
-                  >
-                    <RotateCcw size={18} />
-                  </button>
-                  <button
-                    className="subscription-btn"
-                    onClick={(e) => handleSubscription(email.id, e)}
-                    title="Manage subscription"
-                  >
-                    <LogOut size={18} />
-                  </button>
-                  <button
-                    className="label-btn"
-                    onClick={(e) => handleLabel(email.id, e)}
-                    title="Add label"
-                  >
-                    <Tag size={18} />
-                  </button>
+              <input type="checkbox" className="email-checkbox" />
+              <button
+                className={`email-star-btn ${email.isStarred ? 'active' : ''}`}
+                onClick={(e) => handleToggleStar(email.id, e)}
+                title={email.isStarred ? 'Remove star' : 'Add star'}
+              >
+                <Star size={18} fill={email.isStarred ? 'currentColor' : 'none'} />
+              </button>
+              <div className="email-content">
+                <div className="email-header">
+                  <strong className="email-from">{email.from}</strong>
+                  <strong className="email-subject">{email.subject}</strong>
+                  <span className="email-preview"> - {email.body.substring(0, 60)}...</span>
                 </div>
-                <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
               </div>
-              <div className="email-subject">{email.subject}</div>
-              <div className="email-preview">{email.body.substring(0, 100)}...</div>
+              <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
             </div>
           ))}
         </div>
       )}
 
-      {inboxEmails.length === 0 && !loading && (
+      {filteredEmails.length === 0 && !loading && (
         <div className="empty-state">
-          <p>No inbox emails yet</p>
+          <p>{localSearchQuery ? 'No emails match your search' : 'No inbox emails yet'}</p>
         </div>
       )}
     </div>

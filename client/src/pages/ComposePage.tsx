@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 
 interface ComposePageProps {
   token: string
@@ -14,6 +15,23 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.state) {
+      const { action, email, replyTo } = location.state
+      if (email) {
+        if (action === 'reply') {
+          setTo(replyTo || email.from)
+          setSubject(email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`)
+          setBody(`\n\nOn ${new Date(email.date).toLocaleString()}, ${email.from} wrote:\n> ${email.body.replace(/\n/g, '\n> ')}`)
+        } else if (action === 'forward') {
+          setSubject(email.subject.startsWith('Fwd:') ? email.subject : `Fwd: ${email.subject}`)
+          setBody(`\n\n---------- Forwarded message ---------\nFrom: ${email.from}\nDate: ${new Date(email.date).toLocaleString()}\nSubject: ${email.subject}\nTo: ${email.to}\n\n${email.body}`)
+        }
+      }
+    }
+  }, [location.state])
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()

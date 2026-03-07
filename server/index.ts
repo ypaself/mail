@@ -271,6 +271,16 @@ app.post('/api/send', authenticateToken, async (req: Request<{}, {}, SendEmailBo
 // Receive emails endpoint (get from database)
 app.get('/api/inbox', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE recipient = $1 AND is_snoozed = false AND is_archived = false AND is_spam = false AND is_deleted = false`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get received emails (where user is the recipient, not snoozed, not archived, not purchased, not scheduled, not important, not spam, not deleted, not subscription, not labeled)
     const result = await pool.query<{
       id: number;
@@ -282,10 +292,12 @@ app.get('/api/inbox', authenticateToken, async (req: Request, res: Response): Pr
       folder: string;
       is_starred: boolean;
       is_snoozed: boolean;
+      is_read: boolean;
+      is_important: boolean;
     }>(
-      `SELECT id, subject, sender as "from", recipient as "to", sent_at as "date", body, 'inbox' as folder, is_starred, is_snoozed
-       FROM emails WHERE recipient = $1 AND is_snoozed = false AND is_archived = false AND is_purchased = false AND is_scheduled = false AND is_important = false AND is_spam = false AND is_deleted = false AND is_subscription = false AND label_name IS NULL ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+      `SELECT id, subject, sender as "from", recipient as "to", sent_at as "date", body, 'inbox' as folder, is_starred, is_snoozed, is_read, is_important
+       FROM emails WHERE recipient = $1 AND is_snoozed = false AND is_archived = false AND is_spam = false AND is_deleted = false ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -297,8 +309,10 @@ app.get('/api/inbox', authenticateToken, async (req: Request, res: Response): Pr
       folder: email.folder,
       isStarred: email.is_starred,
       isSnoozed: email.is_snoozed,
+      isRead: email.is_read,
+      isImportant: email.is_important,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch emails', details: getErrorMessage(err) });
   }
@@ -307,6 +321,16 @@ app.get('/api/inbox', authenticateToken, async (req: Request, res: Response): Pr
 // Get sent emails endpoint
 app.get('/api/sent', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE sender = $1 AND is_snoozed = false AND is_archived = false AND is_spam = false AND is_deleted = false AND is_scheduled = false`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get sent emails (where user is the sender, not snoozed, not archived, not purchased, not scheduled, not important, not spam, not deleted, not subscription, not labeled)
     const result = await pool.query<{
       id: number;
@@ -318,10 +342,12 @@ app.get('/api/sent', authenticateToken, async (req: Request, res: Response): Pro
       folder: string;
       is_starred: boolean;
       is_snoozed: boolean;
+      is_read: boolean;
+      is_important: boolean;
     }>(
-      `SELECT id, subject, sender as "from", recipient as "to", sent_at as "date", body, 'sent' as folder, is_starred, is_snoozed
-       FROM emails WHERE sender = $1 AND is_snoozed = false AND is_archived = false AND is_purchased = false AND is_scheduled = false AND is_important = false AND is_spam = false AND is_deleted = false AND is_subscription = false AND label_name IS NULL ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+      `SELECT id, subject, sender as "from", recipient as "to", sent_at as "date", body, 'sent' as folder, is_starred, is_snoozed, is_read, is_important
+       FROM emails WHERE sender = $1 AND is_snoozed = false AND is_archived = false AND is_spam = false AND is_deleted = false AND is_scheduled = false ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -333,8 +359,10 @@ app.get('/api/sent', authenticateToken, async (req: Request, res: Response): Pro
       folder: email.folder,
       isStarred: email.is_starred,
       isSnoozed: email.is_snoozed,
+      isRead: email.is_read,
+      isImportant: email.is_important,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch emails', details: getErrorMessage(err) });
   }
@@ -343,6 +371,16 @@ app.get('/api/sent', authenticateToken, async (req: Request, res: Response): Pro
 // Get starred emails endpoint
 app.get('/api/starred', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_starred = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get starred emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -353,12 +391,13 @@ app.get('/api/starred', authenticateToken, async (req: Request, res: Response): 
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_starred = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -369,8 +408,9 @@ app.get('/api/starred', authenticateToken, async (req: Request, res: Response): 
       body: email.body,
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch starred emails', details: getErrorMessage(err) });
   }
@@ -414,6 +454,16 @@ app.put('/api/emails/:id/star', authenticateToken, async (req: Request, res: Res
 // Get snoozed emails endpoint
 app.get('/api/snoozed', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_snoozed = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get snoozed emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -425,12 +475,13 @@ app.get('/api/snoozed', authenticateToken, async (req: Request, res: Response): 
       sender: string;
       is_snoozed: boolean;
       snoozed_until: Date | null;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_snoozed, snoozed_until
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_snoozed, snoozed_until, is_read
        FROM emails
        WHERE is_snoozed = true AND (recipient = $1 OR sender = $1)
-       ORDER BY snoozed_until DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY snoozed_until DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -442,8 +493,9 @@ app.get('/api/snoozed', authenticateToken, async (req: Request, res: Response): 
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isSnoozed: email.is_snoozed,
       snoozedUntil: email.snoozed_until,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch snoozed emails', details: getErrorMessage(err) });
   }
@@ -491,6 +543,16 @@ app.put('/api/emails/:id/snooze', authenticateToken, async (req: Request, res: R
 // Get drafts emails endpoint
 app.get('/api/drafts', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE user_id = $1 AND is_draft = true`,
+      [req.user!.id]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get draft emails created by the user
     const result = await pool.query<{
       id: number;
@@ -504,8 +566,8 @@ app.get('/api/drafts', authenticateToken, async (req: Request, res: Response): P
       `SELECT id, subject, sender as "from", recipient as "to", sent_at as "date", body, is_starred
        FROM emails
        WHERE user_id = $1 AND is_draft = true
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.id]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.id, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -517,7 +579,7 @@ app.get('/api/drafts', authenticateToken, async (req: Request, res: Response): P
       isStarred: email.is_starred,
       isDraft: true,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch drafts', details: getErrorMessage(err) });
   }
@@ -642,6 +704,16 @@ app.delete('/api/emails/:id/draft', authenticateToken, async (req: Request, res:
 // Get archived emails endpoint
 app.get('/api/archived', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_archived = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get archived emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -652,12 +724,13 @@ app.get('/api/archived', authenticateToken, async (req: Request, res: Response):
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_archived = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -669,8 +742,9 @@ app.get('/api/archived', authenticateToken, async (req: Request, res: Response):
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isArchived: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch archived emails', details: getErrorMessage(err) });
   }
@@ -711,9 +785,53 @@ app.put('/api/emails/:id/archive', authenticateToken, async (req: Request, res: 
   }
 });
 
+// Mark email as read/unread
+app.put('/api/emails/:id/read', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { is_read } = req.body;
+
+  if (typeof is_read !== 'boolean') {
+    res.status(400).json({ error: 'is_read must be a boolean' });
+    return;
+  }
+
+  try {
+    const emailResult = await pool.query<{ sender: string; recipient: string }>(
+      'SELECT sender, recipient FROM emails WHERE id = $1',
+      [id]
+    );
+
+    if (emailResult.rows.length === 0) {
+      res.status(404).json({ error: 'Email not found' });
+      return;
+    }
+
+    const email = emailResult.rows[0];
+    if (email.sender !== req.user!.email && email.recipient !== req.user!.email) {
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    await pool.query('UPDATE emails SET is_read = $1 WHERE id = $2', [is_read, id]);
+    res.json({ message: 'Email read status updated', isRead: is_read });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update read status', details: getErrorMessage(err) });
+  }
+});
+
 // Get purchased emails endpoint
 app.get('/api/purchased', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_purchased = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get purchased emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -724,12 +842,13 @@ app.get('/api/purchased', authenticateToken, async (req: Request, res: Response)
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_purchased = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -741,8 +860,9 @@ app.get('/api/purchased', authenticateToken, async (req: Request, res: Response)
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isPurchased: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch purchased emails', details: getErrorMessage(err) });
   }
@@ -786,6 +906,16 @@ app.put('/api/emails/:id/purchase', authenticateToken, async (req: Request, res:
 // Get all mails endpoint
 app.get('/api/allmails', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE recipient = $1 OR sender = $1`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get all emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -797,12 +927,15 @@ app.get('/api/allmails', authenticateToken, async (req: Request, res: Response):
       sender: string;
       is_starred: boolean;
       is_snoozed: boolean;
+      is_read: boolean;
+      is_important: boolean;
+      is_spam: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_snoozed
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_snoozed, is_read, is_important, is_spam
        FROM emails
        WHERE recipient = $1 OR sender = $1
-       ORDER BY sent_at DESC LIMIT 100`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -814,8 +947,11 @@ app.get('/api/allmails', authenticateToken, async (req: Request, res: Response):
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isSnoozed: email.is_snoozed,
+      isRead: email.is_read,
+      isImportant: email.is_important,
+      isSpam: email.is_spam,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch all mails', details: getErrorMessage(err) });
   }
@@ -824,6 +960,16 @@ app.get('/api/allmails', authenticateToken, async (req: Request, res: Response):
 // Get scheduled emails endpoint
 app.get('/api/scheduled', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_scheduled = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get scheduled emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -835,12 +981,13 @@ app.get('/api/scheduled', authenticateToken, async (req: Request, res: Response)
       sender: string;
       is_starred: boolean;
       scheduled_for: Date | null;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, scheduled_for
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, scheduled_for, is_read
        FROM emails
        WHERE is_scheduled = true AND (recipient = $1 OR sender = $1)
-       ORDER BY scheduled_for ASC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY scheduled_for ASC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -853,8 +1000,9 @@ app.get('/api/scheduled', authenticateToken, async (req: Request, res: Response)
       isStarred: email.is_starred,
       isScheduled: true,
       scheduledFor: email.scheduled_for,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch scheduled emails', details: getErrorMessage(err) });
   }
@@ -899,6 +1047,16 @@ app.put('/api/emails/:id/schedule', authenticateToken, async (req: Request, res:
 // Get important emails endpoint
 app.get('/api/important', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_important = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get important emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -909,12 +1067,13 @@ app.get('/api/important', authenticateToken, async (req: Request, res: Response)
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_important = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -926,8 +1085,9 @@ app.get('/api/important', authenticateToken, async (req: Request, res: Response)
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isImportant: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch important emails', details: getErrorMessage(err) });
   }
@@ -971,6 +1131,16 @@ app.put('/api/emails/:id/important', authenticateToken, async (req: Request, res
 // Get spam emails endpoint
 app.get('/api/spam', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_spam = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get spam emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -981,12 +1151,13 @@ app.get('/api/spam', authenticateToken, async (req: Request, res: Response): Pro
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_spam = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -998,8 +1169,9 @@ app.get('/api/spam', authenticateToken, async (req: Request, res: Response): Pro
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isSpam: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch spam emails', details: getErrorMessage(err) });
   }
@@ -1043,6 +1215,16 @@ app.put('/api/emails/:id/spam', authenticateToken, async (req: Request, res: Res
 // Get trash emails endpoint
 app.get('/api/trash', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_deleted = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get deleted emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -1053,12 +1235,13 @@ app.get('/api/trash', authenticateToken, async (req: Request, res: Response): Pr
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_deleted = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -1070,8 +1253,9 @@ app.get('/api/trash', authenticateToken, async (req: Request, res: Response): Pr
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isDeleted: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch trash emails', details: getErrorMessage(err) });
   }
@@ -1115,6 +1299,16 @@ app.put('/api/emails/:id/delete', authenticateToken, async (req: Request, res: R
 // Get subscription emails endpoint
 app.get('/api/subscriptions', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE is_subscription = true AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get subscription emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -1125,12 +1319,13 @@ app.get('/api/subscriptions', authenticateToken, async (req: Request, res: Respo
       body: string | null;
       sender: string;
       is_starred: boolean;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, is_read
        FROM emails
        WHERE is_subscription = true AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -1142,8 +1337,9 @@ app.get('/api/subscriptions', authenticateToken, async (req: Request, res: Respo
       folder: email.sender === req.user!.email ? 'sent' : 'inbox',
       isStarred: email.is_starred,
       isSubscription: true,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch subscription emails', details: getErrorMessage(err) });
   }
@@ -1325,10 +1521,76 @@ app.delete('/api/custom-labels/:id', authenticateToken, async (req: Request, res
   }
 });
 
+// Batch update emails
+app.put('/api/emails/batch', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { action, ids, all, type, value } = req.body;
+
+  if (!all && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+    res.status(400).json({ error: 'No emails selected' });
+    return;
+  }
+
+  try {
+    let query = '';
+    let params: any[] = [];
+
+    // Construct the WHERE clause
+    let whereClause = '';
+    if (all) {
+      // For "Select All", we target based on the current folder type
+      // This is a simplified implementation. In a real app, you'd replicate the filter logic of each folder.
+      if (type === 'inbox') {
+        whereClause = 'recipient = $1 AND is_archived = false AND is_deleted = false AND is_spam = false';
+      } else if (type === 'sent') {
+        whereClause = 'sender = $1 AND is_archived = false AND is_deleted = false';
+      } else if (type === 'trash') {
+        whereClause = '(recipient = $1 OR sender = $1) AND is_deleted = true';
+      } else {
+        // Fallback for other folders or safety
+        whereClause = '(recipient = $1 OR sender = $1)';
+      }
+      params = [req.user!.email];
+    } else {
+      whereClause = 'id = ANY($1::int[]) AND (recipient = $2 OR sender = $2)';
+      params = [ids, req.user!.email];
+    }
+
+    // Construct the UPDATE query based on action
+    if (action === 'archive') {
+      query = `UPDATE emails SET is_archived = true, is_inbox = false WHERE ${whereClause}`;
+    } else if (action === 'delete') {
+      query = `UPDATE emails SET is_deleted = true WHERE ${whereClause}`;
+    } else if (action === 'read') {
+      query = `UPDATE emails SET is_read = ${value ? 'true' : 'false'} WHERE ${whereClause}`;
+    } else if (action === 'star') {
+      query = `UPDATE emails SET is_starred = ${value ? 'true' : 'false'} WHERE ${whereClause}`;
+    }
+
+    if (query) {
+      await pool.query(query, params);
+      res.json({ message: 'Batch update successful' });
+    } else {
+      res.status(400).json({ error: 'Invalid action' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Batch update failed', details: getErrorMessage(err) });
+  }
+});
+
 // Get emails for a specific label
 app.get('/api/labels/:labelName', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
     const labelName = Array.isArray(req.params.labelName) ? req.params.labelName[0] : req.params.labelName;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE label_name = $1 AND (recipient = $2 OR sender = $2)`,
+      [decodeURIComponent(labelName), req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     const result = await pool.query<{
       id: number;
       subject: string | null;
@@ -1339,12 +1601,13 @@ app.get('/api/labels/:labelName', authenticateToken, async (req: Request, res: R
       sender: string;
       is_starred: boolean;
       label_name: string | null;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, label_name
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, label_name, is_read
        FROM emails
        WHERE label_name = $1 AND (recipient = $2 OR sender = $2)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [decodeURIComponent(labelName), req.user!.email]
+       ORDER BY sent_at DESC LIMIT $3 OFFSET $4`,
+      [decodeURIComponent(labelName), req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -1357,8 +1620,9 @@ app.get('/api/labels/:labelName', authenticateToken, async (req: Request, res: R
       isStarred: email.is_starred,
       isLabeled: true,
       label: email.label_name,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch label emails', details: getErrorMessage(err) });
   }
@@ -1367,6 +1631,16 @@ app.get('/api/labels/:labelName', authenticateToken, async (req: Request, res: R
 // Get labeled emails endpoint (all labeled emails)
 app.get('/api/labels', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM emails WHERE label_name IS NOT NULL AND (recipient = $1 OR sender = $1)`,
+      [req.user!.email]
+    );
+    const total = parseInt(countResult.rows[0].count, 10);
+
     // Get labeled emails (both inbox and sent)
     const result = await pool.query<{
       id: number;
@@ -1378,12 +1652,13 @@ app.get('/api/labels', authenticateToken, async (req: Request, res: Response): P
       sender: string;
       is_starred: boolean;
       label_name: string | null;
+      is_read: boolean;
     }>(
-      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, label_name
+      `SELECT id, subject, sender, recipient as "to", sender as "from", sent_at as "date", body, is_starred, label_name, is_read
        FROM emails
        WHERE label_name IS NOT NULL AND (recipient = $1 OR sender = $1)
-       ORDER BY sent_at DESC LIMIT 50`,
-      [req.user!.email]
+       ORDER BY sent_at DESC LIMIT $2 OFFSET $3`,
+      [req.user!.email, limit, offset]
     );
     const emails: any[] = result.rows.map(email => ({
       id: email.id,
@@ -1396,8 +1671,9 @@ app.get('/api/labels', authenticateToken, async (req: Request, res: Response): P
       isStarred: email.is_starred,
       isLabeled: true,
       label: email.label_name,
+      isRead: email.is_read,
     }));
-    res.json({ emails });
+    res.json({ emails, total });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch labeled emails', details: getErrorMessage(err) });
   }

@@ -72,6 +72,20 @@ interface LabelNode {
   children?: LabelNode[]
 }
 
+interface SearchFilters {
+  from: string
+  to: string
+  cc: string
+  bcc: string
+  subject: string
+  keywords: string
+  hasAttachment: boolean
+  dateFrom: string
+  dateTo: string
+  readStatus: 'all' | 'read' | 'unread'
+  category: string
+}
+
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
   const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem('userEmail'))
@@ -87,6 +101,22 @@ function App() {
   const [expandedLabelGroups, setExpandedLabelGroups] = useState<Set<number>>(new Set())
   const [openLabelMenu, setOpenLabelMenu] = useState<number | null>(null)
   const [menuButtonClicked, setMenuButtonClicked] = useState(false)
+  const [searchQuery] = useState('')
+  const [showSearchOptions, setShowSearchOptions] = useState(false)
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
+  const [searchFilters] = useState<SearchFilters>({
+    from: '',
+    to: '',
+    cc: '',
+    bcc: '',
+    subject: '',
+    keywords: '',
+    hasAttachment: false,
+    dateFrom: '',
+    dateTo: '',
+    readStatus: 'all',
+    category: activeSidebarSection === 'inbox' ? 'Inbox' : activeSidebarSection === 'sent' ? 'Sent' : activeSidebarSection === 'starred' ? 'Starred' : activeSidebarSection === 'snoozed' ? 'Snoozed' : activeSidebarSection === 'drafts' ? 'Drafts' : activeSidebarSection === 'archive' ? 'Archive' : activeSidebarSection === 'purchases' ? 'Purchases' : activeSidebarSection === 'all-mails' ? 'All Categories' : activeSidebarSection === 'scheduled' ? 'Scheduled' : activeSidebarSection === 'important' ? 'Important' : activeSidebarSection === 'spam' ? 'Spam' : activeSidebarSection === 'trash' ? 'Trash' : 'All Categories'
+  })
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -145,6 +175,25 @@ function App() {
       fetchCustomLabels()
     }
   }, [token])
+
+  // Handle click-outside for search panel and category dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const isClickInsideSearchPanel = target.closest('.search-options-panel')
+      const isClickInsideSearchBar = target.closest('.mail-search-bar')
+
+      if (!isClickInsideSearchPanel && !isClickInsideSearchBar) {
+        setShowSearchOptions(false)
+        setShowCategoryDropdown(false)
+      }
+    }
+
+    if (showSearchOptions || showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showSearchOptions, showCategoryDropdown])
 
   // Auto-collapse sidebar based on width and user action
   useEffect(() => {
@@ -647,14 +696,14 @@ function App() {
             {activeApp === 'mail' && (
             <div className={`middle-bar ${!token ? 'full-width' : ''}`}>
               <Routes>
-                <Route path="/inbox" element={<InboxPage token={token} onViewEmail={handleViewEmail} />} />
+                <Route path="/inbox" element={<InboxPage token={token} onViewEmail={handleViewEmail} searchQuery={searchQuery} searchFilters={searchFilters} />} />
                 <Route path="/sent" element={<SentPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/starred" element={<StarredPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/snoozed" element={<SnoozedPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/drafts" element={<DraftsPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/archived" element={<ArchivedPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/purchased" element={<PurchasedPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/allmails" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} />} />
+                <Route path="/allmails" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="all" searchQuery={searchQuery} searchFilters={searchFilters} />} />
                 <Route path="/scheduled" element={<ScheduledPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/important" element={<ImportantPage token={token} onViewEmail={handleViewEmail} />} />
                 <Route path="/spam" element={<SpamPage token={token} onViewEmail={handleViewEmail} />} />
