@@ -986,7 +986,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             All ({getTrashTabCount('trash').total})
             {getTrashTabCount('trash').unread > 0 && (
-              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('trash').unread}</span>
+              <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('trash').unread}</span>
             )}
           </button>
           <button
@@ -995,7 +995,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Received ({getTrashTabCount('received').total})
             {getTrashTabCount('received').unread > 0 && (
-              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('received').unread}</span>
+              <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('received').unread}</span>
             )}
           </button>
           <button
@@ -1004,7 +1004,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Sent ({getTrashTabCount('sent').total})
             {getTrashTabCount('sent').unread > 0 && (
-              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('sent').unread}</span>
+              <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('sent').unread}</span>
             )}
           </button>
         </div>
