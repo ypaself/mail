@@ -885,12 +885,6 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             Primary
           </button>
           <button
-            className={`email-tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('promotions')}
-          >
-            Promotions
-          </button>
-          <button
             className={`email-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
             onClick={() => setActiveTab('transactions')}
           >
@@ -901,6 +895,12 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTab('social')}
           >
             Social
+          </button>
+          <button
+            className={`email-tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('promotions')}
+          >
+            Promotions
           </button>
         </div>
       )}
