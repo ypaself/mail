@@ -1040,7 +1040,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             <div
               key={idx}
               id={`email-item-${idx}`}
-              className={`email-item ${!email.isRead ? 'unread' : ''} ${selectedEmails.has(email.id) ? 'selected' : ''} ${focusedIndex === idx ? 'focused' : ''}`}
+              className={`email-item ${!email.isRead || email.folder === 'sent' ? 'unread' : ''} ${selectedEmails.has(email.id) ? 'selected' : ''} ${focusedIndex === idx ? 'focused' : ''}`}
               onClick={async () => {
                 if (!email.isRead && type !== 'sent' && type !== 'drafts' && email.id !== undefined) {
                   try {
@@ -1057,7 +1057,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
               onContextMenu={(e) => handleContextMenu(e, email)}
             >
               <div className="checkbox-wrapper">
-                {!email.isRead && (
+                {!email.isRead && email.folder !== 'sent' && (
                   <div className="unread-indicator"></div>
                 )}
                 <input
