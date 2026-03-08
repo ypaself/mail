@@ -3877,6 +3877,7 @@ body {
   background-color: #ffffff;
   padding: 12px 12px;
   align-items: center;
+  justify-content: space-evenly;
   min-height: 48px;
   height: auto;
   flex-shrink: 0;
@@ -3899,7 +3900,8 @@ body {
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .email-tab-btn:hover {
