@@ -4069,6 +4069,15 @@ body {
   background-color: #f0f0f0 !important;
 }
 
+.email-item.sent .email-from {
+  color: #333;
+  font-weight: 600;
+}
+
+.email-item.sent .email-subject {
+  color: #333;
+}
+
 .email-item:not(.unread) .email-from {
   color: #333;
   font-weight: normal;
