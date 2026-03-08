@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar, ArrowDownCircle } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -992,7 +992,9 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           <button
             className={`email-tab-btn ${activeTrashTab === 'received' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('received')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
+            <ArrowDownCircle size={16} />
             Received ({getTrashTabCount('received').total})
             {getTrashTabCount('received').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('received').unread}</span>
@@ -1001,7 +1003,9 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           <button
             className={`email-tab-btn ${activeTrashTab === 'sent' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('sent')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
+            <Send size={16} />
             Sent ({getTrashTabCount('sent').total})
             {getTrashTabCount('sent').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('sent').unread}</span>
