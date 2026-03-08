@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
 import './App.css'
 import LoginPage from './pages/LoginPage'
@@ -52,12 +52,16 @@ import {
   Video,
   StickyNote,
   Sheet,
-  FileJson
+  FileJson,
+  Search,
+  RefreshCw,
+  X,
+  Sliders
 } from 'lucide-react'
 
 
 interface Email {
-  id?: number
+  id: number
   subject: string
   from: string
   to: string
@@ -100,11 +104,24 @@ function App() {
   const [customLabels, setCustomLabels] = useState<LabelNode[]>([])
   const [expandedLabelGroups, setExpandedLabelGroups] = useState<Set<number>>(new Set())
   const [openLabelMenu, setOpenLabelMenu] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [menuButtonClicked, setMenuButtonClicked] = useState(false)
-  const [searchQuery] = useState('')
   const [showSearchOptions, setShowSearchOptions] = useState(false)
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
-  const [searchFilters] = useState<SearchFilters>({
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({
+    inbox: 0,
+    starred: 0,
+    snoozed: 0,
+    archived: 0,
+    purchased: 0,
+    all: 0,
+    scheduled: 0,
+    important: 0,
+    spam: 0,
+    trash: 0,
+    subscriptions: 0
+  })
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
     from: '',
     to: '',
     cc: '',
@@ -115,8 +132,10 @@ function App() {
     dateFrom: '',
     dateTo: '',
     readStatus: 'all',
-    category: activeSidebarSection === 'inbox' ? 'Inbox' : activeSidebarSection === 'sent' ? 'Sent' : activeSidebarSection === 'starred' ? 'Starred' : activeSidebarSection === 'snoozed' ? 'Snoozed' : activeSidebarSection === 'drafts' ? 'Drafts' : activeSidebarSection === 'archive' ? 'Archive' : activeSidebarSection === 'purchases' ? 'Purchases' : activeSidebarSection === 'all-mails' ? 'All Categories' : activeSidebarSection === 'scheduled' ? 'Scheduled' : activeSidebarSection === 'important' ? 'Important' : activeSidebarSection === 'spam' ? 'Spam' : activeSidebarSection === 'trash' ? 'Trash' : 'All Categories'
+    category: ''
   })
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -170,30 +189,105 @@ function App() {
     }
   }
 
+  const fetchUnreadCounts = async () => {
+    if (!token) {
+      console.log('No token available for fetching unread counts')
+      return
+    }
+    try {
+      const endpoints = ['inbox', 'starred', 'snoozed', 'archived', 'purchased', 'allmails', 'scheduled', 'important', 'spam', 'trash', 'subscriptions']
+      const counts: Record<string, number> = {}
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(`http://localhost:5050/api/${endpoint}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (response.ok) {
+            const data = await response.json()
+            const emails = Array.isArray(data.emails) ? data.emails : []
+            const unreadCount = emails.filter((email: any) => email.isRead === false).length
+            const key = endpoint === 'allmails' ? 'all' : endpoint
+            counts[key] = unreadCount
+            console.log(`${endpoint}: ${emails.length} total, ${unreadCount} unread`)
+          } else {
+            console.warn(`Failed to fetch ${endpoint}: ${response.status}`)
+          }
+        } catch (endpointErr) {
+          console.error(`Error fetching ${endpoint}:`, endpointErr)
+        }
+      }
+
+      // Fetch unread counts for custom labels
+      if (customLabels.length > 0) {
+        console.log('Fetching counts for', customLabels.length, 'labels')
+        const fetchLabelCounts = async (labels: any[], depth: number = 0, pathNames: string[] = []): Promise<void> => {
+          for (const label of labels) {
+            const indent = '  '.repeat(depth)
+            const currentPath = [...pathNames, label.name]
+            const fullPath = currentPath.join(' / ')
+            try {
+              console.log(`${indent}Fetching label-${label.id} (${fullPath})...`)
+              const response = await fetch(`http://localhost:5050/api/labels/${encodeURIComponent(fullPath)}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+              if (response.ok) {
+                const data = await response.json()
+                const emails = Array.isArray(data.emails) ? data.emails : []
+                const unreadCount = emails.filter((email: any) => email.isRead === false).length
+                counts[`label-${label.id}`] = unreadCount
+                console.log(`${indent}label-${fullPath} (id: ${label.id}): ${emails.length} total, ${unreadCount} unread`)
+              } else {
+                console.warn(`${indent}Failed to fetch label ${fullPath}: ${response.status}`)
+              }
+            } catch (labelErr) {
+              console.error(`${indent}Error fetching label ${fullPath}:`, labelErr)
+            }
+            // Recursively fetch counts for child labels
+            if (label.children && label.children.length > 0) {
+              console.log(`${indent}Fetching ${label.children.length} child labels for ${fullPath}...`)
+              await fetchLabelCounts(label.children, depth + 1, currentPath)
+            }
+          }
+        }
+        await fetchLabelCounts(customLabels)
+      }
+
+      console.log('Final unread counts:', counts)
+      setUnreadCounts(counts)
+    } catch (err) {
+      console.error('Failed to fetch unread counts:', err)
+    }
+  }
+
   useEffect(() => {
     if (token) {
       fetchCustomLabels()
+      fetchUnreadCounts()
     }
   }, [token])
 
-  // Handle click-outside for search panel and category dropdown
+  // Fetch unread counts again when custom labels are loaded
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      const isClickInsideSearchPanel = target.closest('.search-options-panel')
-      const isClickInsideSearchBar = target.closest('.mail-search-bar')
-
-      if (!isClickInsideSearchPanel && !isClickInsideSearchBar) {
-        setShowSearchOptions(false)
-        setShowCategoryDropdown(false)
-      }
+    if (token && customLabels.length > 0) {
+      fetchUnreadCounts()
     }
+  }, [customLabels, token])
 
-    if (showSearchOptions || showCategoryDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
+  // Auto-select category filter based on active sidebar section
+  useEffect(() => {
+    setSearchFilters(prev => ({
+      ...prev,
+      category: activeSidebarSection === 'inbox' ? '' : activeSidebarSection
+    }))
+  }, [activeSidebarSection])
+
+  // Auto-focus search bar when app loads or user logs in
+  useEffect(() => {
+    if (token && searchInputRef.current) {
+      searchInputRef.current.focus()
     }
-  }, [showSearchOptions, showCategoryDropdown])
+  }, [token])
 
   // Auto-collapse sidebar based on width and user action
   useEffect(() => {
@@ -214,6 +308,27 @@ function App() {
 
     return () => window.removeEventListener('resize', handleResize)
   }, [menuButtonClicked])
+
+  // Close search options panel and category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const isClickInsideSearchPanel = target.closest('.search-box-wrapper')
+      const isClickInsideCategory = target.closest('[data-category-dropdown]')
+
+      if (!isClickInsideSearchPanel && showSearchOptions) {
+        setShowSearchOptions(false)
+      }
+      if (!isClickInsideCategory && showCategoryDropdown) {
+        setShowCategoryDropdown(false)
+      }
+    }
+
+    if (showSearchOptions || showCategoryDropdown) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showSearchOptions, showCategoryDropdown])
 
   const handleMailBtnClick = () => {
     setActiveApp(activeApp === 'mail' ? '' as any : 'mail')
@@ -406,10 +521,23 @@ function App() {
     return result
   }
 
+  // Helper function to check if label or any descendants have unread emails
+  const hasUnreadDescendants = (label: LabelNode): boolean => {
+    if ((unreadCounts[`label-${label.id}`] || 0) > 0) return true
+    if (label.children && label.children.length > 0) {
+      return label.children.some((child: LabelNode) => hasUnreadDescendants(child))
+    }
+    return false
+  }
+
   const renderLabelNode = (label: LabelNode, depth: number, pathNames: string[] = []): React.ReactNode => {
     const currentPath = [...pathNames, label.name]
     const displayName = currentPath.join(' / ')
     const hasChildren = label.children && label.children.length > 0
+    const indent = '  '.repeat(depth)
+    const labelKey = `label-${label.id}`
+    const unreadCount = unreadCounts[labelKey] || 0
+    console.log(`${indent}Rendering label: "${label.name}" (id: ${label.id}, key: ${labelKey}, unreadCount: ${unreadCount})`, {label, unreadCounts})
 
     // In collapsed sidebar, only show labels that are expanded (or top-level labels)
     // Collapsed sidebar: render only icon in vertical line
@@ -423,9 +551,10 @@ function App() {
             style={{ color: label.color, padding: '8px', justifyContent: 'center' }}
           >
             <Tag size={20} className="label-icon" style={{ color: label.color, fill: 'currentColor', opacity: 0.8 }} />
+            {hasUnreadDescendants(label) && <span className="unread-badge"></span>}
           </button>
-          {/* Recursively render children if expanded */}
-          {hasChildren && expandedLabelGroups.has(label.id) && (
+          {/* Recursively render children if expanded OR if they (or their descendants) have unread emails in collapsed sidebar */}
+          {hasChildren && (expandedLabelGroups.has(label.id) || label.children!.some((child: LabelNode) => hasUnreadDescendants(child))) && (
             <div>
               {label.children!.map(child => renderLabelNode(child, depth + 1, currentPath))}
             </div>
@@ -460,6 +589,7 @@ function App() {
           >
             <Tag size={20} className="label-icon" style={{ color: label.color, fill: 'currentColor', opacity: 0.8 }} />
             <span>{label.name}</span>
+            {unreadCounts[`label-${label.id}`] > 0 && <span className="unread-badge">{unreadCounts[`label-${label.id}`]}</span>}
           </button>
           <div className="label-actions">
             <button
@@ -569,14 +699,543 @@ function App() {
         {/* Sidebar and content layout - only show when logged in and not on special pages */}
         {token && !['/conference', '/chat', '/office', '/login', '/reset'].includes(location.pathname) && (
           <>
-            <div className="app-middle">
-              <button
-                className="menu-btn"
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                ☰
-              </button>
+            <div className="top-main">
+              <div className="menu-section">
+                <button
+                  className="menu-btn"
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                  ☰
+                </button>
+              </div>
+              <div className="search-box-wrapper">
+                <div className="search-box-container">
+                  <Search size={18} className="search-icon" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="search-input"
+                    placeholder="Search mail..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button
+                    className={`search-filter-btn ${Object.values(searchFilters).some(v => (typeof v === 'string' ? v !== '' : v)) ? 'active' : ''}`}
+                    onClick={() => setShowSearchOptions(!showSearchOptions)}
+                    title="Advanced search"
+                  >
+                    <Sliders size={18} />
+                  </button>
+                  {searchQuery && (
+                    <button
+                      className="clear-search-btn"
+                      onClick={() => setSearchQuery('')}
+                      title="Clear search"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                {showSearchOptions && (
+                  <div className="search-options-panel">
+                  <div className="search-options-grid">
+                    <div className="search-field">
+                      <label>From</label>
+                      <input
+                        type="text"
+                        value={searchFilters.from}
+                        onChange={(e) => setSearchFilters({...searchFilters, from: e.target.value})}
+                        placeholder="Sender email"
+                      />
+                    </div>
+                    <div className="search-field">
+                      <label>To</label>
+                      <input
+                        type="text"
+                        value={searchFilters.to}
+                        onChange={(e) => setSearchFilters({...searchFilters, to: e.target.value})}
+                        placeholder="Recipient email"
+                      />
+                    </div>
+
+                    <div className="search-field">
+                      <label>CC</label>
+                      <input
+                        type="text"
+                        value={searchFilters.cc}
+                        onChange={(e) => setSearchFilters({...searchFilters, cc: e.target.value})}
+                        placeholder="CC email"
+                      />
+                    </div>
+                    <div className="search-field">
+                      <label>BCC</label>
+                      <input
+                        type="text"
+                        value={searchFilters.bcc}
+                        onChange={(e) => setSearchFilters({...searchFilters, bcc: e.target.value})}
+                        placeholder="BCC email"
+                      />
+                    </div>
+
+                    <div className="search-field">
+                      <label>Subject</label>
+                      <input
+                        type="text"
+                        value={searchFilters.subject}
+                        onChange={(e) => setSearchFilters({...searchFilters, subject: e.target.value})}
+                        placeholder="Subject keywords"
+                      />
+                    </div>
+                    <div className="search-field">
+                      <label>Keywords</label>
+                      <input
+                        type="text"
+                        value={searchFilters.keywords}
+                        onChange={(e) => setSearchFilters({...searchFilters, keywords: e.target.value})}
+                        placeholder="Body keywords"
+                      />
+                    </div>
+
+                    <div className="search-field">
+                      <label>From Date</label>
+                      <input
+                        type="date"
+                        value={searchFilters.dateFrom}
+                        onChange={(e) => setSearchFilters({...searchFilters, dateFrom: e.target.value})}
+                      />
+                    </div>
+                    <div className="search-field">
+                      <label>To Date</label>
+                      <input
+                        type="date"
+                        value={searchFilters.dateTo}
+                        onChange={(e) => setSearchFilters({...searchFilters, dateTo: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="search-field">
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={searchFilters.hasAttachment}
+                          onChange={(e) => setSearchFilters({...searchFilters, hasAttachment: e.target.checked})}
+                        />
+                        Has Attachment
+                      </label>
+                    </div>
+                    <div className="search-field">
+                      <label>Read Status</label>
+                      <select
+                        value={searchFilters.readStatus}
+                        onChange={(e) => setSearchFilters({...searchFilters, readStatus: e.target.value as 'all' | 'read' | 'unread'})}
+                      >
+                        <option value="all">All</option>
+                        <option value="read">Read</option>
+                        <option value="unread">Unread</option>
+                      </select>
+                    </div>
+
+                    <div className="search-field">
+                      <label>Category</label>
+                      <div
+                        ref={categoryDropdownRef}
+                        data-category-dropdown="true"
+                        style={{ position: 'relative' }}
+                      >
+                        <button
+                          className="category-dropdown-btn"
+                          onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '0.9rem',
+                            fontFamily: 'inherit',
+                            backgroundColor: '#f9f9f9',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                        >
+                          {searchFilters.category === 'inbox' ? <Inbox size={18} /> :
+                           searchFilters.category === 'sent' ? <Send size={18} /> :
+                           searchFilters.category === 'starred' ? <Star size={18} /> :
+                           searchFilters.category === 'snoozed' ? <Clock size={18} /> :
+                           searchFilters.category === 'drafts' ? <FileText size={18} /> :
+                           searchFilters.category === 'archive' ? <Archive size={18} /> :
+                           searchFilters.category === 'spam' ? <AlertCircle size={18} /> :
+                           searchFilters.category === 'trash' ? <Trash2 size={18} /> :
+                           searchFilters.category === 'purchases' ? <ShoppingBag size={18} /> :
+                           searchFilters.category === 'all-mails' ? <Mail size={18} /> :
+                           searchFilters.category === 'scheduled' ? <Calendar size={18} /> :
+                           searchFilters.category === 'important' ? <Flag size={18} /> :
+                           searchFilters.category === 'subscriptions' ? <Bell size={18} /> :
+                           searchFilters.category.startsWith('label:') && customLabels.find(l => `label:${l.name}` === searchFilters.category) && (
+                            <span style={{
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              backgroundColor: customLabels.find(l => `label:${l.name}` === searchFilters.category)?.color || '#999',
+                              flexShrink: 0
+                            }}></span>
+                          ) || null}
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {searchFilters.category === '' ? 'All Categories' :
+                             searchFilters.category === 'inbox' ? 'Inbox' + (activeSidebarSection === 'inbox' ? ' (Current)' : '') :
+                             searchFilters.category === 'sent' ? 'Sent' + (activeSidebarSection === 'sent' ? ' (Current)' : '') :
+                             searchFilters.category === 'starred' ? 'Starred' + (activeSidebarSection === 'starred' ? ' (Current)' : '') :
+                             searchFilters.category === 'snoozed' ? 'Snoozed' + (activeSidebarSection === 'snoozed' ? ' (Current)' : '') :
+                             searchFilters.category === 'drafts' ? 'Drafts' + (activeSidebarSection === 'drafts' ? ' (Current)' : '') :
+                             searchFilters.category === 'archive' ? 'Archived' + (activeSidebarSection === 'archive' ? ' (Current)' : '') :
+                             searchFilters.category === 'spam' ? 'Spam' + (activeSidebarSection === 'spam' ? ' (Current)' : '') :
+                             searchFilters.category === 'trash' ? 'Trash' + (activeSidebarSection === 'trash' ? ' (Current)' : '') :
+                             searchFilters.category === 'purchases' ? 'Purchases' + (activeSidebarSection === 'purchases' ? ' (Current)' : '') :
+                             searchFilters.category === 'all-mails' ? 'All Mails' + (activeSidebarSection === 'all-mails' ? ' (Current)' : '') :
+                             searchFilters.category === 'scheduled' ? 'Scheduled' + (activeSidebarSection === 'scheduled' ? ' (Current)' : '') :
+                             searchFilters.category === 'important' ? 'Important' + (activeSidebarSection === 'important' ? ' (Current)' : '') :
+                             searchFilters.category === 'subscriptions' ? 'Subscriptions' + (activeSidebarSection === 'subscriptions' ? ' (Current)' : '') :
+                             searchFilters.category.startsWith('label:') ? searchFilters.category.substring(6) : 'All Categories'}
+                          </span>
+                          <ChevronDown
+                            size={16}
+                            style={{
+                              flexShrink: 0,
+                              transition: 'transform 0.2s ease',
+                              transform: showCategoryDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                              color: '#666'
+                            }}
+                          />
+                        </button>
+
+                        {showCategoryDropdown && (
+                          <div className="category-dropdown-menu">
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: ''})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === '' ? '#e8f0fe' : 'white',
+                                fontWeight: searchFilters.category === '' ? 'bold' : 'normal'
+                              }}
+                            >
+                              All Categories
+                            </div>
+
+                            <div style={{ borderTop: '1px solid #e0e0e0', margin: '4px 0' }}></div>
+
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'inbox'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'inbox' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'inbox' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Inbox size={18} />
+                              <span>Inbox {activeSidebarSection === 'inbox' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'sent'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'sent' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'sent' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Send size={18} />
+                              <span>Sent {activeSidebarSection === 'sent' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'starred'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'starred' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'starred' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Star size={18} />
+                              <span>Starred {activeSidebarSection === 'starred' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'snoozed'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'snoozed' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'snoozed' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Clock size={18} />
+                              <span>Snoozed {activeSidebarSection === 'snoozed' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'drafts'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'drafts' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'drafts' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <FileText size={18} />
+                              <span>Drafts {activeSidebarSection === 'drafts' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'archive'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'archive' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'archive' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Archive size={18} />
+                              <span>Archived {activeSidebarSection === 'archive' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'spam'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'spam' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'spam' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <AlertCircle size={18} />
+                              <span>Spam {activeSidebarSection === 'spam' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'trash'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'trash' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'trash' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Trash2 size={18} />
+                              <span>Trash {activeSidebarSection === 'trash' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'purchases'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'purchases' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'purchases' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <ShoppingBag size={18} />
+                              <span>Purchases {activeSidebarSection === 'purchases' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'all-mails'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'all-mails' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'all-mails' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Mail size={18} />
+                              <span>All Mails {activeSidebarSection === 'all-mails' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'scheduled'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'scheduled' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'scheduled' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Calendar size={18} />
+                              <span>Scheduled {activeSidebarSection === 'scheduled' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'important'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'important' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'important' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Flag size={18} />
+                              <span>Important {activeSidebarSection === 'important' ? '(Current)' : ''}</span>
+                            </div>
+                            <div
+                              className="category-option"
+                              onClick={() => {
+                                setSearchFilters({...searchFilters, category: 'subscriptions'})
+                                setShowCategoryDropdown(false)
+                              }}
+                              style={{
+                                backgroundColor: searchFilters.category === 'subscriptions' ? '#e8f0fe' : 'white',
+                                fontWeight: activeSidebarSection === 'subscriptions' ? 'bold' : 'normal',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                              }}
+                            >
+                              <Bell size={18} />
+                              <span>Subscriptions {activeSidebarSection === 'subscriptions' ? '(Current)' : ''}</span>
+                            </div>
+
+                            {customLabels.length > 0 && (
+                              <>
+                                <div style={{ borderTop: '1px solid #e0e0e0', margin: '4px 0' }}>
+                                  <div style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#999', fontWeight: 'bold' }}>
+                                    ─── Labels ───
+                                  </div>
+                                </div>
+                                {customLabels.map(label => {
+                                  const renderLabelOption = (label: any, level: number) => {
+                                    const prefix = level === 0 ? '●' : level === 1 ? '├─' : '└─'
+                                    const indent = '   '.repeat(level)
+                                    const labelValue = `label:${label.name}`
+                                    return [
+                                      <div
+                                        key={label.id}
+                                        className="category-option"
+                                        onClick={() => {
+                                          setSearchFilters({...searchFilters, category: labelValue})
+                                          setShowCategoryDropdown(false)
+                                        }}
+                                        style={{
+                                          backgroundColor: searchFilters.category === labelValue ? '#e8f0fe' : 'white',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: '6px'
+                                        }}
+                                      >
+                                        <span style={{ color: '#999' }}>{prefix}{indent}</span>
+                                        <span
+                                          style={{
+                                            width: '10px',
+                                            height: '10px',
+                                            borderRadius: '50%',
+                                            backgroundColor: label.color || '#999',
+                                            flexShrink: 0
+                                          }}
+                                        ></span>
+                                        <span>{label.name}</span>
+                                      </div>,
+                                      ...(label.children ? label.children.flatMap((child: any) => renderLabelOption(child, level + 1)) : [])
+                                    ]
+                                  }
+                                  return renderLabelOption(label, 0)
+                                })}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="search-options-footer">
+                    <button
+                      className="search-apply-btn"
+                      onClick={() => setShowSearchOptions(false)}
+                    >
+                      Apply Filters
+                    </button>
+                    <button
+                      className="search-clear-btn"
+                      onClick={() => {
+                        setSearchFilters({
+                          from: '',
+                          to: '',
+                          cc: '',
+                          bcc: '',
+                          subject: '',
+                          keywords: '',
+                          hasAttachment: false,
+                          dateFrom: '',
+                          dateTo: '',
+                          readStatus: 'all',
+                          category: ''
+                        })
+                      }}
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                </div>
+              )}
+              </div>
             </div>
 
             {activeApp === 'mail' && (
@@ -612,6 +1271,7 @@ function App() {
                 <button className={`sidebar-item ${activeSidebarSection === 'inbox' ? 'active' : ''}`} title="Inbox" onClick={handleInboxClick}>
                   <Inbox size={20} />
                   <span>Inbox</span>
+                  {unreadCounts.inbox > 0 && <span className="unread-badge">{unreadCounts.inbox}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'sent' ? 'active' : ''}`} title="Sent" onClick={handleSentClick}>
                   <Send size={20} />
@@ -620,10 +1280,12 @@ function App() {
                 <button className={`sidebar-item ${activeSidebarSection === 'starred' ? 'active' : ''}`} title="Starred" onClick={handleStarredClick}>
                   <Star size={20} />
                   <span>Starred</span>
+                  {unreadCounts.starred > 0 && <span className="unread-badge">{unreadCounts.starred}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'snoozed' ? 'active' : ''}`} title="Snoozed" onClick={handleSnoozedClick}>
                   <Clock size={20} />
                   <span>Snoozed</span>
+                  {unreadCounts.snoozed > 0 && <span className="unread-badge">{unreadCounts.snoozed}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'drafts' ? 'active' : ''}`} title="Drafts" onClick={handleDraftsClick}>
                   <FileText size={20} />
@@ -632,10 +1294,12 @@ function App() {
                 <button className={`sidebar-item ${activeSidebarSection === 'archive' ? 'active' : ''}`} title="Archive" onClick={handleArchiveClick}>
                   <Archive size={20} />
                   <span>Archive</span>
+                  {unreadCounts.archived > 0 && <span className="unread-badge">{unreadCounts.archived}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'purchases' ? 'active' : ''}`} title="Purchases" onClick={handlePurchasesClick}>
                   <ShoppingBag size={20} />
                   <span>Purchases</span>
+                  {unreadCounts.purchased > 0 && <span className="unread-badge">{unreadCounts.purchased}</span>}
                 </button>
               </div>
 
@@ -652,22 +1316,27 @@ function App() {
                 <button className={`sidebar-item ${activeSidebarSection === 'all-mails' ? 'active' : ''}`} title="All Mails" onClick={handleAllMailsClick}>
                   <Mail size={20} />
                   <span>All Mails</span>
+                  {unreadCounts.all > 0 && <span className="unread-badge">{unreadCounts.all}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'scheduled' ? 'active' : ''}`} title="Scheduled" onClick={handleScheduledClick}>
                   <Calendar size={20} />
                   <span>Scheduled</span>
+                  {unreadCounts.scheduled > 0 && <span className="unread-badge">{unreadCounts.scheduled}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'important' ? 'active' : ''}`} title="Important" onClick={handleImportantClick}>
                   <Flag size={20} />
                   <span>Important</span>
+                  {unreadCounts.important > 0 && <span className="unread-badge">{unreadCounts.important}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'spam' ? 'active' : ''}`} title="Spam" onClick={handleSpamClick}>
                   <AlertCircle size={20} />
                   <span>Spam</span>
+                  {unreadCounts.spam > 0 && <span className="unread-badge">{unreadCounts.spam}</span>}
                 </button>
                 <button className={`sidebar-item ${activeSidebarSection === 'trash' ? 'active' : ''}`} title="Trash" onClick={handleTrashClick}>
                   <Trash2 size={20} />
                   <span>Trash</span>
+                  {unreadCounts.trash > 0 && <span className="unread-badge">{unreadCounts.trash}</span>}
                 </button>
                 <button className="sidebar-item" title="Manage Subscription" onClick={handleManageSubscriptionClick}>
                   <Bell size={20} />
@@ -696,20 +1365,20 @@ function App() {
             {activeApp === 'mail' && (
             <div className={`middle-bar ${!token ? 'full-width' : ''}`}>
               <Routes>
-                <Route path="/inbox" element={<InboxPage token={token} onViewEmail={handleViewEmail} searchQuery={searchQuery} searchFilters={searchFilters} />} />
-                <Route path="/sent" element={<SentPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/starred" element={<StarredPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/snoozed" element={<SnoozedPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/drafts" element={<DraftsPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/archived" element={<ArchivedPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/purchased" element={<PurchasedPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/allmails" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="all" searchQuery={searchQuery} searchFilters={searchFilters} />} />
-                <Route path="/scheduled" element={<ScheduledPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/important" element={<ImportantPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/spam" element={<SpamPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/trash" element={<TrashPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/subscriptions" element={<SubscriptionsPage token={token} onViewEmail={handleViewEmail} />} />
-                <Route path="/labels/:labelName?" element={<LabelsPage token={token} onViewEmail={handleViewEmail} />} />
+                <Route path="/inbox" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="inbox" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/sent" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="sent" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/starred" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="starred" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/snoozed" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="snoozed" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/drafts" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="drafts" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/archived" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="archived" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/purchased" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="purchased" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/allmails" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="all" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/scheduled" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="scheduled" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/important" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="important" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/spam" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="spam" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/trash" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="trash" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/subscriptions" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="subscriptions" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
+                <Route path="/labels/:labelName?" element={<AllMailsPage token={token} onViewEmail={handleViewEmail} type="label" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} />} />
                 <Route path="/create-label" element={<CreateLabelPage token={token} onLabelCreated={handleLabelCreated} parentLabels={customLabels} />} />
                 <Route path="/compose" element={<ComposePage token={token} userEmail={userEmail || ''} onSent={() => navigate('/inbox')} onCancel={() => navigate('/inbox')} />} />
                 <Route path="/email" element={<EmailPage token={token} selectedEmail={selectedEmail} onBack={() => navigate('/inbox')} />} />

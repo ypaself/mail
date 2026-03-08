@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertCircle, AlertOctagon, Printer, Reply, Forward } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -13,6 +13,7 @@ interface Email {
   folder?: string
   isRead?: boolean
   isSnoozed?: boolean
+  snoozedUntil?: string
   isImportant?: boolean
   isSpam?: boolean
 }
@@ -37,9 +38,10 @@ interface AllMailsPageProps {
   type?: 'inbox' | 'sent' | 'starred' | 'snoozed' | 'drafts' | 'archived' | 'purchased' | 'all' | 'scheduled' | 'important' | 'spam' | 'trash' | 'subscriptions' | 'label'
   searchQuery?: string
   searchFilters?: SearchFilters
+  onSearch?: (query: string) => void
 }
 
-export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQuery = '', searchFilters }: AllMailsPageProps) {
+export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQuery = '', searchFilters, onSearch }: AllMailsPageProps) {
   const [allEmails, setAllEmails] = useState<Email[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -58,6 +60,8 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
   const [selectAllAcrossPages, setSelectAllAcrossPages] = useState(false)
   const [toast, setToast] = useState<{ message: string; onUndo?: () => void } | null>(null)
   const [checkboxDropdownOpen, setCheckboxDropdownOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'all' | 'primary' | 'promotions' | 'transactions' | 'social'>('all')
+  const [activeTrashTab, setActiveTrashTab] = useState<'trash' | 'received' | 'sent'>('trash')
   const { labelName } = useParams()
   const mainCheckboxRef = useRef<HTMLInputElement>(null)
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -108,8 +112,52 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     return () => document.removeEventListener('click', handleClickOutside)
   }, [])
 
+  // Determine email category based on content
+  const getEmailCategory = (email: Email): 'primary' | 'promotions' | 'transactions' | 'social' => {
+    const subject = (email.subject || '').toLowerCase()
+    const body = (email.body || '').toLowerCase()
+    const from = (email.from || '').toLowerCase()
+    const combined = `${subject} ${body} ${from}`
+
+    // Social keywords
+    if (combined.includes('facebook') || combined.includes('twitter') || combined.includes('instagram') || combined.includes('linkedin') || combined.includes('youtube') || combined.includes('tiktok') || combined.includes('pinterest') || combined.includes('reddit') || combined.includes('telegram') || combined.includes('whatsapp') || combined.includes('snapchat') || combined.includes('social') || combined.includes('friend request') || combined.includes('follow') || combined.includes('comment') || combined.includes('like') || combined.includes('share')) {
+      return 'social'
+    }
+
+    // Promotions keywords
+    if (combined.includes('sale') || combined.includes('discount') || combined.includes('offer') || combined.includes('coupon') || combined.includes('promotion') || combined.includes('deal')) {
+      return 'promotions'
+    }
+
+    // Transactions keywords
+    if (combined.includes('order') || combined.includes('invoice') || combined.includes('receipt') || combined.includes('payment') || combined.includes('transaction') || combined.includes('purchase') || combined.includes('confirmation')) {
+      return 'transactions'
+    }
+
+    // Default to primary
+    return 'primary'
+  }
+
   // Filter emails based on search query and advanced filters
   const filteredEmails = allEmails.filter(email => {
+    // Apply tab filter only for inbox type (skip if 'all' tab is selected)
+    if (type === 'inbox' && activeTab !== 'all') {
+      const emailCategory = getEmailCategory(email)
+      if (emailCategory !== activeTab) return false
+    }
+
+    // Apply tab filter for trash type
+    if (type === 'trash') {
+      if (activeTrashTab === 'received' && email.folder !== 'inbox') return false
+      if (activeTrashTab === 'sent' && email.folder !== 'sent') return false
+      // 'trash' tab shows all deleted emails
+    }
+
+    // Hide sent, drafts, and scheduled emails in All Mails view
+    if (type === 'all' && ['sent', 'drafts', 'scheduled'].includes(email.folder || '')) {
+      return false
+    }
+
     // Apply search query filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -241,17 +289,28 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
 
       const data = await response.json()
 
+      console.log(`Fetched ${type} emails:`, { response: response.ok, emailCount: data.emails?.length, total: data.total, data })
+
       if (response.ok && data.emails && data.emails.length > 0) {
+        console.log(`Setting ${data.emails.length} emails for ${type}`)
         setAllEmails(data.emails)
         setTotalEmails(data.total || 0)
+      } else if (response.ok) {
+        // API returned success but no emails
+        setAllEmails([])
+        setTotalEmails(data.total || 0)
+        console.log(`No emails found for type: ${type} - Data:`, data)
       } else {
         setAllEmails([])
         setTotalEmails(0)
+        setError(`Failed to load ${type} emails: ${response.statusText}`)
+        console.error(`API error for ${type}:`, response.status, data)
       }
     } catch (err) {
       setAllEmails([])
       setTotalEmails(0)
-      setError('Failed to load emails')
+      setError(`Failed to load emails: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      console.error(`Fetch error for ${type}:`, err)
     } finally {
       setLoading(false)
     }
@@ -358,6 +417,45 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
         }
     } catch (err) {
         console.error('Failed to toggle read status:', err);
+    }
+  };
+
+  const handleBulkAction = async (action: 'archive' | 'delete' | 'read', value?: boolean) => {
+    const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined);
+    if (ids.length === 0) return;
+
+    try {
+      if (action === 'read') {
+        await fetch('http://localhost:5050/api/emails/batch', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ids, action: 'read', value }),
+        });
+        setAllEmails(allEmails.map(email =>
+          selectedEmails.has(email.id) ? { ...email, isRead: value } : email
+        ));
+      } else if (action === 'archive') {
+        await Promise.all(ids.map(id =>
+          fetch(`http://localhost:5050/api/emails/${id}/archive`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        ));
+        setAllEmails(allEmails.filter(email => !selectedEmails.has(email.id)));
+        showToast(`${ids.length} conversation(s) archived`, undefined);
+      } else if (action === 'delete') {
+        await Promise.all(ids.map(id =>
+          fetch(`http://localhost:5050/api/emails/${id}/delete`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        ));
+        setAllEmails(allEmails.filter(email => !selectedEmails.has(email.id)));
+        showToast(`${ids.length} conversation(s) moved to Trash`, undefined);
+      }
+      setSelectedEmails(new Set());
+    } catch (err) {
+      console.error('Failed to bulk action:', err);
     }
   };
 
@@ -645,47 +743,6 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     setSelectedEmails(new Set())
   }
 
-  const handleBulkAction = async (action: 'archive' | 'delete' | 'read', readValue?: boolean) => {
-    if (selectedEmails.size === 0) return
-
-    const emailIds = Array.from(selectedEmails)
-    const actionMap: { [key: string]: string } = {
-      'archive': 'archive',
-      'delete': 'delete',
-      'read': 'read'
-    }
-
-    try {
-      for (const emailId of emailIds) {
-        const endpoint = actionMap[action]
-        const url = `http://localhost:5050/api/emails/${emailId}/${endpoint}`
-
-        const options: RequestInit = {
-          method: 'PUT',
-          headers: { Authorization: `Bearer ${token}` },
-        }
-
-        if (action === 'read') {
-          options.headers = { ...options.headers, 'Content-Type': 'application/json' }
-          options.body = JSON.stringify({ is_read: readValue })
-        }
-
-        await fetch(url, options)
-      }
-
-      fetchAllMails()
-      setSelectedEmails(new Set())
-      const actionLabels: { [key: string]: string } = {
-        'archive': 'Archived',
-        'delete': 'Deleted',
-        'read': readValue ? 'Marked as read' : 'Marked as unread'
-      }
-      showToast(actionLabels[action])
-    } catch (err) {
-      console.error(`Failed to perform bulk ${action}:`, err)
-    }
-  }
-
   const highlightText = (text: string, query: string) => {
     if (!query || !text) return text
 
@@ -728,12 +785,16 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             <button className="action-btn" onClick={() => handleBulkAction('delete')} title="Delete">
               <Trash2 size={18} />
             </button>
-            <button className="action-btn" onClick={() => handleBulkAction('read', true)} title="Mark as read">
-              <MailOpen size={18} />
-            </button>
-            <button className="action-btn" onClick={() => handleBulkAction('read', false)} title="Mark as unread">
-              <Mail size={18} />
-            </button>
+            {type !== 'sent' && type !== 'drafts' && (
+              <>
+                <button className="action-btn" onClick={() => handleBulkAction('read', true)} title="Mark as read">
+                  <MailOpen size={18} />
+                </button>
+                <button className="action-btn" onClick={() => handleBulkAction('read', false)} title="Mark as unread">
+                  <Mail size={18} />
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="mail-header-controls">
@@ -746,8 +807,12 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                 <div className="checkbox-dropdown-menu" onClick={(e) => e.stopPropagation()}>
                   <button className="dropdown-option" onClick={() => handleDropdownSelect('all')}>All</button>
                   <button className="dropdown-option" onClick={() => handleDropdownSelect('none')}>None</button>
-                  <button className="dropdown-option" onClick={() => handleDropdownSelect('read')}>Read</button>
-                  <button className="dropdown-option" onClick={() => handleDropdownSelect('unread')}>Unread</button>
+                  {type !== 'sent' && type !== 'drafts' && (
+                    <>
+                      <button className="dropdown-option" onClick={() => handleDropdownSelect('read')}>Read</button>
+                      <button className="dropdown-option" onClick={() => handleDropdownSelect('unread')}>Unread</button>
+                    </>
+                  )}
                   <button className="dropdown-option" onClick={() => handleDropdownSelect('starred')}>Starred</button>
                   <button className="dropdown-option" onClick={() => handleDropdownSelect('unstarred')}>Unstarred</button>
                 </div>
@@ -805,6 +870,64 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
         </div>
       </div>
 
+      {type === 'inbox' && (
+        <div className="email-tabs">
+          <button
+            className={`email-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
+            onClick={() => setActiveTab('all')}
+          >
+            All
+          </button>
+          <button
+            className={`email-tab-btn ${activeTab === 'primary' ? 'active' : ''}`}
+            onClick={() => setActiveTab('primary')}
+          >
+            Primary
+          </button>
+          <button
+            className={`email-tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('promotions')}
+          >
+            Promotions
+          </button>
+          <button
+            className={`email-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transactions')}
+          >
+            Transactions
+          </button>
+          <button
+            className={`email-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
+            onClick={() => setActiveTab('social')}
+          >
+            Social
+          </button>
+        </div>
+      )}
+
+      {type === 'trash' && (
+        <div className="email-tabs">
+          <button
+            className={`email-tab-btn ${activeTrashTab === 'trash' ? 'active' : ''}`}
+            onClick={() => setActiveTrashTab('trash')}
+          >
+            All
+          </button>
+          <button
+            className={`email-tab-btn ${activeTrashTab === 'received' ? 'active' : ''}`}
+            onClick={() => setActiveTrashTab('received')}
+          >
+            Received
+          </button>
+          <button
+            className={`email-tab-btn ${activeTrashTab === 'sent' ? 'active' : ''}`}
+            onClick={() => setActiveTrashTab('sent')}
+          >
+            Sent
+          </button>
+        </div>
+      )}
+
       {selectedEmails.size === filteredEmails.length && filteredEmails.length > 0 && (
         <div className="select-all-banner">
           {!selectAllAcrossPages ? (
@@ -836,16 +959,33 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
               key={idx}
               id={`email-item-${idx}`}
               className={`email-item ${!email.isRead ? 'unread' : ''} ${selectedEmails.has(email.id) ? 'selected' : ''} ${focusedIndex === idx ? 'focused' : ''}`}
-              onClick={() => onViewEmail(email)}
+              onClick={async () => {
+                if (!email.isRead && type !== 'sent' && type !== 'drafts' && email.id !== undefined) {
+                  try {
+                    await fetch(`http://localhost:5050/api/emails/${email.id}/read`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ is_read: true }),
+                    });
+                    setAllEmails(allEmails.map(e => e.id === email.id ? { ...e, isRead: true } : e));
+                  } catch (_) {}
+                }
+                onViewEmail(email);
+              }}
               onContextMenu={(e) => handleContextMenu(e, email)}
             >
-              <input
-                type="checkbox"
-                className="email-checkbox"
-                checked={selectedEmails.has(email.id)}
-                onChange={() => handleSelectEmail(email.id)}
-                onClick={(e) => e.stopPropagation()}
-              />
+              <div className="checkbox-wrapper">
+                {!email.isRead && (
+                  <div className="unread-indicator"></div>
+                )}
+                <input
+                  type="checkbox"
+                  className="email-checkbox"
+                  checked={selectedEmails.has(email.id)}
+                  onChange={() => handleSelectEmail(email.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
               <button
                 className={`star-btn ${email.isStarred ? 'active' : ''}`}
                 onClick={(e) => handleToggleStar(email.id, e)}
@@ -862,7 +1002,6 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                 {highlightText(email.subject, searchQuery)}
                 <span className="email-preview"> - {highlightText(email.body.substring(0, 100), searchQuery)}...</span>
               </div>
-              <div className="email-date">{new Date(email.date).toLocaleDateString()}</div>
               <div className="email-hover-actions">
                 <button className="action-btn" onClick={(e) => handleArchive(email.id, e)} title={type === 'archived' ? "Unarchive" : "Archive"}>
                   <Archive size={18} />
@@ -870,11 +1009,13 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                 <button className="action-btn" onClick={(e) => handleDelete(email.id, e)} title={type === 'trash' ? "Restore" : "Delete"}>
                   <Trash2 size={18} />
                 </button>
-                <button className="action-btn" onClick={(e) => handleToggleRead(email.id, email.isRead, e)} title={email.isRead ? "Mark as unread" : "Mark as read"}>
-                  {email.isRead ? <Mail size={18} /> : <MailOpen size={18} />}
-                </button>
+                {type !== 'sent' && type !== 'drafts' && (
+                  <button className="action-btn" onClick={(e) => handleToggleRead(email.id, email.isRead, e)} title={email.isRead ? "Mark as unread" : "Mark as read"}>
+                    {email.isRead ? <Mail size={18} /> : <MailOpen size={18} />}
+                  </button>
+                )}
                 <button className="action-btn" onClick={(e) => handleToggleImportant(email.id, email.isImportant, e)} title={email.isImportant ? "Mark as not important" : "Mark as important"}>
-                  <AlertCircle size={18} fill={email.isImportant ? 'currentColor' : 'none'} color={email.isImportant ? '#f4b400' : 'currentColor'} />
+                  <Flag size={18} fill={email.isImportant ? 'currentColor' : 'none'} color={email.isImportant ? '#f4b400' : 'currentColor'} />
                 </button>
                 <button className="action-btn" onClick={(e) => handleToggleSpam(email.id, email.isSpam, e)} title={email.isSpam ? "Not spam" : "Mark as spam"}>
                   <AlertOctagon size={18} />
@@ -891,15 +1032,15 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                       <div className="snooze-separator"></div>
                       <div className="snooze-custom-wrapper">
                         <label>Pick date & time</label>
-                        <input 
-                          type="datetime-local" 
+                        <input
+                          type="datetime-local"
                           className="snooze-date-input"
                           onClick={(e) => e.stopPropagation()}
                           min={new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
                           value={customSnoozeDate}
                           onChange={(e) => setCustomSnoozeDate(e.target.value)}
                         />
-                        <button 
+                        <button
                           className="snooze-save-btn"
                           onClick={(e) => { e.stopPropagation(); handleCustomSnooze(email.id, customSnoozeDate); }}
                         >
@@ -931,9 +1072,9 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                           flattenLabels(labels)
                             .filter(l => l.name.toLowerCase().includes(labelSearchQuery.toLowerCase()))
                             .map(label => (
-                            <button 
-                              key={label.id} 
-                              className="dropdown-option" 
+                            <button
+                              key={label.id}
+                              className="dropdown-option"
                               onClick={() => handleApplyLabel(email.id, label.name)}
                               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                             >
@@ -946,8 +1087,8 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                         )}
                       </div>
                       <div style={{ height: '1px', backgroundColor: '#eee', margin: '4px 0' }}></div>
-                      <button 
-                        className="dropdown-option" 
+                      <button
+                        className="dropdown-option"
                         onClick={() => {
                           setMoveMenuOpen(null);
                           navigate('/create-label');
@@ -958,6 +1099,45 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                         Create new label
                       </button>
                     </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ marginLeft: 'auto', marginRight: '1px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <div className="email-date" style={{ color: email.isRead ? '#666' : '#333', fontWeight: email.isRead ? 'normal' : 'bold' }}>
+                  {email.isSnoozed && email.snoozedUntil ? (
+                    <span className="snoozed-until">
+                      {(() => {
+                        const snoozedDate = new Date(email.snoozedUntil);
+                        const currentYear = new Date().getFullYear();
+                        const snoozedYear = snoozedDate.getFullYear();
+                        const time = snoozedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                        if (currentYear === snoozedYear) {
+                          const day = snoozedDate.getDate();
+                          const month = snoozedDate.toLocaleString('default', { month: 'short' });
+                          return `${day} ${month} ${time}`;
+                        } else {
+                          const day = snoozedDate.getDate();
+                          const month = snoozedDate.toLocaleString('default', { month: 'short' });
+                          const year = snoozedDate.getFullYear();
+                          return `${day} ${month} ${year} ${time}`;
+                        }
+                      })()}
+                    </span>
+                  ) : (
+                    (() => {
+                      const emailDate = new Date(email.date);
+                      const currentYear = new Date().getFullYear();
+                      const emailYear = emailDate.getFullYear();
+                      const day = emailDate.getDate();
+                      const month = emailDate.toLocaleString('default', { month: 'short' });
+
+                      if (currentYear === emailYear) {
+                        return `${day} ${month}`;
+                      } else {
+                        return `${day} ${month} ${emailYear}`;
+                      }
+                    })()
                   )}
                 </div>
               </div>

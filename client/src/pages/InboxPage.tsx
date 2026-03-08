@@ -41,6 +41,7 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
   const [error, setError] = useState('')
   const [showSearchOptions, setShowSearchOptions] = useState(false)
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery)
+  const [activeTab, setActiveTab] = useState<'all' | 'primary' | 'promotions' | 'transactions' | 'social'>('all')
 
   useEffect(() => {
     fetchAllEmails()
@@ -70,8 +71,40 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
     }
   }
 
-  // Filter emails based on search query and advanced filters
+  // Determine email category based on content
+  const getEmailCategory = (email: Email): 'primary' | 'promotions' | 'transactions' | 'social' => {
+    const subject = (email.subject || '').toLowerCase()
+    const body = (email.body || '').toLowerCase()
+    const from = (email.from || '').toLowerCase()
+    const combined = `${subject} ${body} ${from}`
+
+    // Social keywords
+    if (combined.includes('facebook') || combined.includes('twitter') || combined.includes('instagram') || combined.includes('linkedin') || combined.includes('youtube') || combined.includes('tiktok') || combined.includes('pinterest') || combined.includes('reddit') || combined.includes('telegram') || combined.includes('whatsapp') || combined.includes('snapchat') || combined.includes('social') || combined.includes('friend request') || combined.includes('follow') || combined.includes('comment') || combined.includes('like') || combined.includes('share')) {
+      return 'social'
+    }
+
+    // Promotions keywords
+    if (combined.includes('sale') || combined.includes('discount') || combined.includes('offer') || combined.includes('coupon') || combined.includes('promotion') || combined.includes('deal')) {
+      return 'promotions'
+    }
+
+    // Transactions keywords
+    if (combined.includes('order') || combined.includes('invoice') || combined.includes('receipt') || combined.includes('payment') || combined.includes('transaction') || combined.includes('purchase') || combined.includes('confirmation')) {
+      return 'transactions'
+    }
+
+    // Default to primary
+    return 'primary'
+  }
+
+  // Filter emails based on tab, search query and advanced filters
   const filteredEmails = inboxEmails.filter(email => {
+    // Apply tab filter (skip if 'all' tab is selected)
+    if (activeTab !== 'all') {
+      const emailCategory = getEmailCategory(email)
+      if (emailCategory !== activeTab) return false
+    }
+
     // Apply search query filter
     if (localSearchQuery) {
       const query = localSearchQuery.toLowerCase()
@@ -154,6 +187,39 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
             &#9776;
           </button>
         </div>
+      </div>
+
+      <div className="email-tabs">
+        <button
+          className={`email-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveTab('all')}
+        >
+          All
+        </button>
+        <button
+          className={`email-tab-btn ${activeTab === 'primary' ? 'active' : ''}`}
+          onClick={() => setActiveTab('primary')}
+        >
+          Primary
+        </button>
+        <button
+          className={`email-tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('promotions')}
+        >
+          Promotions
+        </button>
+        <button
+          className={`email-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('transactions')}
+        >
+          Transactions
+        </button>
+        <button
+          className={`email-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
+          onClick={() => setActiveTab('social')}
+        >
+          Social
+        </button>
       </div>
 
       {error && <div className="message error">{error}</div>}
