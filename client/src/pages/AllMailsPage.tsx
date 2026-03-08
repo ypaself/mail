@@ -173,7 +173,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     }
 
     const total = categoryEmails.length
-    const unread = categoryEmails.filter(email => !email.isRead).length
+    const unread = categoryEmails.filter(email => !email.isRead && email.folder !== 'sent').length
 
     return { total, unread }
   }
@@ -191,7 +191,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     }
 
     const total = trashEmails.length
-    const unread = trashEmails.filter(email => !email.isRead).length
+    const unread = trashEmails.filter(email => !email.isRead && email.folder !== 'sent').length
 
     return { total, unread }
   }
