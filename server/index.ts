@@ -260,7 +260,7 @@ app.post('/api/send', authenticateToken, async (req: Request<{}, {}, SendEmailBo
     // Store sent email in DB (mock implementation for development)
     await pool.query(
       'INSERT INTO emails (user_id, sender, recipient, subject, body, sent_at) VALUES ($1, $2, $3, $4, $5, NOW())',
-      [req.user!.id, process.env.SMTP_USER ?? 'noreply@mailapp.com', to, subject, text]
+      [req.user!.id, req.user!.email, to, subject, text]
     );
     res.json({ message: 'Email sent successfully!', info: { to, subject } });
   } catch (err) {
