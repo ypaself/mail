@@ -150,12 +150,12 @@ function authenticateToken(req: Request, res: Response, next: NextFunction): voi
   const authHeader = req.headers['authorization'];
   const token = authHeader?.split(' ')[1];
   if (!token) {
-    res.sendStatus(401);
+    res.status(401).json({ error: 'Missing authentication token' });
     return;
   }
   jwt.verify(token, process.env.JWT_SECRET ?? 'secret', (err, decoded) => {
     if (err || !decoded) {
-      res.sendStatus(403);
+      res.status(403).json({ error: 'Invalid authentication token' });
       return;
     }
     req.user = decoded as AuthTokenPayload;
