@@ -178,6 +178,24 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     return { total, unread }
   }
 
+  // Get email count for a specific trash tab
+  const getTrashTabCount = (tab: 'trash' | 'received' | 'sent') => {
+    if (type !== 'trash') return { total: 0, unread: 0 }
+
+    let trashEmails = allEmails
+
+    if (tab === 'received') {
+      trashEmails = allEmails.filter(email => email.folder === 'inbox')
+    } else if (tab === 'sent') {
+      trashEmails = allEmails.filter(email => email.folder === 'sent')
+    }
+
+    const total = trashEmails.length
+    const unread = trashEmails.filter(email => !email.isRead).length
+
+    return { total, unread }
+  }
+
   // Filter emails based on search query and advanced filters
   const filteredEmails = allEmails.filter(email => {
     // Apply tab filter only for inbox type (skip if 'all' tab is selected)
@@ -966,19 +984,28 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             className={`email-tab-btn ${activeTrashTab === 'trash' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('trash')}
           >
-            All
+            All ({getTrashTabCount('trash').total})
+            {getTrashTabCount('trash').unread > 0 && (
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('trash').unread}</span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTrashTab === 'received' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('received')}
           >
-            Received
+            Received ({getTrashTabCount('received').total})
+            {getTrashTabCount('received').unread > 0 && (
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('received').unread}</span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTrashTab === 'sent' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('sent')}
           >
-            Sent
+            Sent ({getTrashTabCount('sent').total})
+            {getTrashTabCount('sent').unread > 0 && (
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getTrashTabCount('sent').unread}</span>
+            )}
           </button>
         </div>
       )}
