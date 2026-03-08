@@ -4074,7 +4074,7 @@ body {
 }
 
 .email-item:not(.unread) {
-  background-color: #f0f0f0;
+  background-color: #e8e8e8;
 }
 
 .email-item:hover {
