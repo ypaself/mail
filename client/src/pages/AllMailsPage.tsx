@@ -997,7 +997,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Inbox size={16} />
-            Received ({getTrashTabCount('received').total})
+            Inbox ({getTrashTabCount('received').total})
             {getTrashTabCount('received').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('received').unread}</span>
             )}
