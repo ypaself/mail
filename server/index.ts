@@ -5,6 +5,7 @@ import { Pool, QueryResult } from 'pg';
 import bcrypt from 'bcrypt';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import crypto from 'crypto';
+import mailService from './mailService';
 
 // Type definitions
 interface AuthTokenPayload extends JwtPayload {
@@ -249,7 +250,7 @@ app.post('/api/reset-password', async (req: Request<{}, {}, ResetPasswordBody>, 
   }
 });
 
-// Send email endpoint (Mock for development)
+// Send email endpoint (Real SMTP)
 app.post('/api/send', authenticateToken, async (req: Request<{}, {}, SendEmailBody>, res: Response): Promise<void> => {
   const { to, subject, text } = req.body;
   if (!to || !subject || !text) {
@@ -257,7 +258,19 @@ app.post('/api/send', authenticateToken, async (req: Request<{}, {}, SendEmailBo
     return;
   }
   try {
-    // Store sent email in DB (mock implementation for development)
+    // Send email via SMTP
+    const sent = await mailService.sendEmail({
+      to,
+      subject,
+      text,
+    });
+
+    if (!sent) {
+      res.status(500).json({ error: 'Failed to send email via SMTP' });
+      return;
+    }
+
+    // Store sent email in DB
     await pool.query(
       'INSERT INTO emails (user_id, sender, recipient, subject, body, sent_at) VALUES ($1, $2, $3, $4, $5, NOW())',
       [req.user!.id, req.user!.email, to, subject, text]
@@ -265,6 +278,48 @@ app.post('/api/send', authenticateToken, async (req: Request<{}, {}, SendEmailBo
     res.json({ message: 'Email sent successfully!', info: { to, subject } });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send email', details: getErrorMessage(err) });
+  }
+});
+
+// Verify SMTP connection
+app.post('/api/mail/verify-smtp', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const verified = await mailService.verifyConnection();
+    if (verified) {
+      res.json({ message: 'SMTP connection verified successfully' });
+    } else {
+      res.status(500).json({ error: 'SMTP connection failed. Please check your credentials.' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to verify SMTP connection', details: getErrorMessage(err) });
+  }
+});
+
+// Sync emails from IMAP
+app.post('/api/mail/sync', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const IMAPService = (await import('./imapService')).default;
+    const imapService = new IMAPService(pool, req.user!.id);
+
+    const connected = await imapService.connect();
+    if (!connected) {
+      res.status(500).json({ error: 'Failed to connect to IMAP server. Please check your credentials.' });
+      return;
+    }
+
+    const opened = await imapService.openBox('INBOX');
+    if (!opened) {
+      res.status(500).json({ error: 'Failed to open INBOX' });
+      return;
+    }
+
+    // Fetch last 20 emails from IMAP
+    await imapService.fetchEmails(20);
+    await imapService.disconnect();
+
+    res.json({ message: 'Emails synced successfully from IMAP server' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to sync emails', details: getErrorMessage(err) });
   }
 });
 
