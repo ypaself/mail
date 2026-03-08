@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Inbox, Send, Edit, Calendar } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -155,7 +155,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
         return <span title="Scheduled"><Calendar size={16} style={{ color: '#666' }} /></span>
       case 'inbox':
       default:
-        return <span title="Inbox"><Inbox size={16} style={{ color: '#666' }} /></span>
+        return null
     }
   }
 
