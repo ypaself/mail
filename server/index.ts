@@ -103,8 +103,47 @@ const pool = new Pool(
 );
 
 pool.connect()
-  .then(() => console.log('Connected to PostgreSQL'))
+  .then(() => {
+    console.log('Connected to PostgreSQL');
+    // Run schema migrations
+    runMigrations();
+  })
   .catch((err: Error) => console.error('PostgreSQL connection error:', err));
+
+// Migration function to add missing columns
+async function runMigrations() {
+  try {
+    const columnsToCheck = [
+      { name: 'is_scheduled', type: 'BOOLEAN DEFAULT FALSE' },
+      { name: 'scheduled_for', type: 'TIMESTAMP' },
+      { name: 'is_important', type: 'BOOLEAN DEFAULT FALSE' },
+      { name: 'is_spam', type: 'BOOLEAN DEFAULT FALSE' },
+      { name: 'is_subscription', type: 'BOOLEAN DEFAULT FALSE' },
+      { name: 'label_name', type: 'VARCHAR(50)' },
+    ];
+
+    const result = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'emails'
+    `);
+
+    const existingColumns = new Set(result.rows.map(row => row.column_name));
+
+    for (const column of columnsToCheck) {
+      if (!existingColumns.has(column.name)) {
+        console.log(`Adding missing column: ${column.name}`);
+        await pool.query(`ALTER TABLE emails ADD COLUMN ${column.name} ${column.type}`);
+        console.log(`✓ Added ${column.name}`);
+      }
+    }
+  } catch (err: any) {
+    // Only log real errors, not column already exists errors
+    if (!err.message.includes('already exists')) {
+      console.error('Migration error:', err.message);
+    }
+  }
+}
 
 // JWT authentication middleware
 function authenticateToken(req: Request, res: Response, next: NextFunction): void {
@@ -304,12 +343,6 @@ app.post('/api/mail/sync', authenticateToken, async (req: Request, res: Response
     const connected = await imapService.connect();
     if (!connected) {
       res.status(500).json({ error: 'Failed to connect to IMAP server. Please check your credentials.' });
-      return;
-    }
-
-    const opened = await imapService.openBox('INBOX');
-    if (!opened) {
-      res.status(500).json({ error: 'Failed to open INBOX' });
       return;
     }
 

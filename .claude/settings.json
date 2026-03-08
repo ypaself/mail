@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJ5cGFzZWxmQGdtYWlsLmNvbSIsImlhdCI6MTc3Mjk1OTQ2NCwiZXhwIjoxNzcyOTYzMDY0fQ.ePhtCjPdrsa7hO60__0DFNHE784Vy6G9S7d6q3SjzU8\")",
+      "Bash(__NEW_LINE_823860f36e10cf9a__ echo \"Testing IMAP sync endpoint...\")",
+      "Bash(curl -s -X POST http://localhost:5050/api/mail/sync -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\")",
+      "Bash(__NEW_LINE_614263d3d100f510__ echo \"Testing IMAP sync endpoint...\")",
+      "Bash(curl -i -X POST http://localhost:5050/api/mail/sync -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\")"
+    ]
+  }
+}
