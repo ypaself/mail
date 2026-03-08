@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar, Inbox, CreditCard, Users, Gift, Heart } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar, Inbox, CreditCard, Users, Gift, Heart, Percent, MessageCircle } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -968,7 +968,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTab('social')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Users size={16} />
+            <MessageCircle size={16} />
             Social ({getCategoryCount('social').total})
             {getCategoryCount('social').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getCategoryCount('social').unread}</span>
@@ -979,7 +979,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTab('promotions')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Gift size={16} />
+            <Percent size={16} />
             Promotions ({getCategoryCount('promotions').total})
             {getCategoryCount('promotions').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getCategoryCount('promotions').unread}</span>
