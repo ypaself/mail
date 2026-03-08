@@ -4050,6 +4050,7 @@ body {
 
 .email-item.unread .email-from {
   font-weight: bold;
+  color: #2196f3;
 }
 
 .email-item.unread {
