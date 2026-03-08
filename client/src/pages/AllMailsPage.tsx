@@ -159,6 +159,25 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
     }
   }
 
+  // Get email count for a specific category
+  const getCategoryCount = (category: 'all' | 'primary' | 'promotions' | 'transactions' | 'social') => {
+    if (type !== 'inbox') return { total: 0, unread: 0 }
+
+    let categoryEmails = allEmails
+
+    if (category !== 'all') {
+      categoryEmails = allEmails.filter(email => {
+        const emailCategory = getEmailCategory(email)
+        return emailCategory === category
+      })
+    }
+
+    const total = categoryEmails.length
+    const unread = categoryEmails.filter(email => !email.isRead).length
+
+    return { total, unread }
+  }
+
   // Filter emails based on search query and advanced filters
   const filteredEmails = allEmails.filter(email => {
     // Apply tab filter only for inbox type (skip if 'all' tab is selected)
@@ -897,31 +916,46 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             className={`email-tab-btn ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => setActiveTab('all')}
           >
-            All
+            All ({getCategoryCount('all').total})
+            {getCategoryCount('all').unread > 0 && (
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTab === 'primary' ? 'active' : ''}`}
             onClick={() => setActiveTab('primary')}
           >
-            Primary
+            Primary ({getCategoryCount('primary').total})
+            {getCategoryCount('primary').unread > 0 && (
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
             onClick={() => setActiveTab('transactions')}
           >
-            Transactions
+            Transactions ({getCategoryCount('transactions').total})
+            {getCategoryCount('transactions').unread > 0 && (
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTab === 'social' ? 'active' : ''}`}
             onClick={() => setActiveTab('social')}
           >
-            Social
+            Social ({getCategoryCount('social').total})
+            {getCategoryCount('social').unread > 0 && (
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+            )}
           </button>
           <button
             className={`email-tab-btn ${activeTab === 'promotions' ? 'active' : ''}`}
             onClick={() => setActiveTab('promotions')}
           >
-            Promotions
+            Promotions ({getCategoryCount('promotions').total})
+            {getCategoryCount('promotions').unread > 0 && (
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+            )}
           </button>
         </div>
       )}
