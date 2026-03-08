@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Inbox, Send, Edit, Calendar } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -136,6 +136,27 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
 
     // Default to primary
     return 'primary'
+  }
+
+  // Get folder icon based on email folder
+  const getFolderIcon = (folder?: string) => {
+    switch (folder) {
+      case 'sent':
+        return <span title="Sent"><Send size={16} style={{ color: '#666' }} /></span>
+      case 'drafts':
+        return <span title="Drafts"><Edit size={16} style={{ color: '#666' }} /></span>
+      case 'archived':
+        return <span title="Archived"><Archive size={16} style={{ color: '#666' }} /></span>
+      case 'spam':
+        return <span title="Spam"><AlertOctagon size={16} style={{ color: '#666' }} /></span>
+      case 'trash':
+        return <span title="Trash"><Trash2 size={16} style={{ color: '#666' }} /></span>
+      case 'scheduled':
+        return <span title="Scheduled"><Calendar size={16} style={{ color: '#666' }} /></span>
+      case 'inbox':
+      default:
+        return <span title="Inbox"><Inbox size={16} style={{ color: '#666' }} /></span>
+    }
   }
 
   // Filter emails based on search query and advanced filters
@@ -1103,6 +1124,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
                 </div>
               </div>
               <div style={{ marginLeft: 'auto', marginRight: '1px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                {type === 'all' && getFolderIcon(email.folder)}
                 <div className="email-date" style={{ color: email.isRead ? '#666' : '#333', fontWeight: email.isRead ? 'normal' : 'bold' }}>
                   {email.isSnoozed && email.snoozedUntil ? (
                     <span className="snoozed-until">
