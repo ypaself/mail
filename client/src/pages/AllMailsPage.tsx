@@ -918,7 +918,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             All ({getCategoryCount('all').total})
             {getCategoryCount('all').unread > 0 && (
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getCategoryCount('all').unread}</span>
             )}
           </button>
           <button
@@ -927,7 +927,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Primary ({getCategoryCount('primary').total})
             {getCategoryCount('primary').unread > 0 && (
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getCategoryCount('primary').unread}</span>
             )}
           </button>
           <button
@@ -936,7 +936,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Transactions ({getCategoryCount('transactions').total})
             {getCategoryCount('transactions').unread > 0 && (
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getCategoryCount('transactions').unread}</span>
             )}
           </button>
           <button
@@ -945,7 +945,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Social ({getCategoryCount('social').total})
             {getCategoryCount('social').unread > 0 && (
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getCategoryCount('social').unread}</span>
             )}
           </button>
           <button
@@ -954,7 +954,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           >
             Promotions ({getCategoryCount('promotions').total})
             {getCategoryCount('promotions').unread > 0 && (
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4285F4', marginLeft: '6px' }}></span>
+              <span style={{ color: '#4285F4', marginLeft: '6px', fontWeight: 'bold' }}>{getCategoryCount('promotions').unread}</span>
             )}
           </button>
         </div>
