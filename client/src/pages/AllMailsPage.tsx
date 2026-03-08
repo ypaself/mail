@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar, ArrowDownCircle } from 'lucide-react'
+import { Star, Archive, Trash2, MailOpen, Clock, Move, Mail, ChevronDown, RefreshCw, ChevronLeft, ChevronRight, Plus, AlertOctagon, Printer, Reply, Forward, Flag, Send, Edit, Calendar, Inbox } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 interface Email {
@@ -983,7 +983,9 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
           <button
             className={`email-tab-btn ${activeTrashTab === 'trash' ? 'active' : ''}`}
             onClick={() => setActiveTrashTab('trash')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
+            <Trash2 size={16} />
             All ({getTrashTabCount('trash').total})
             {getTrashTabCount('trash').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('trash').unread}</span>
@@ -994,7 +996,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTrashTab('received')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <ArrowDownCircle size={16} />
+            <Inbox size={16} />
             Received ({getTrashTabCount('received').total})
             {getTrashTabCount('received').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getTrashTabCount('received').unread}</span>
