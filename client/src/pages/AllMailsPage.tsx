@@ -1040,7 +1040,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             <div
               key={idx}
               id={`email-item-${idx}`}
-              className={`email-item ${!email.isRead || email.folder === 'sent' ? 'unread' : ''} ${selectedEmails.has(email.id) ? 'selected' : ''} ${focusedIndex === idx ? 'focused' : ''}`}
+              className={`email-item ${!email.isRead || email.folder === 'sent' ? 'unread' : ''} ${email.folder === 'sent' ? 'sent' : ''} ${selectedEmails.has(email.id) ? 'selected' : ''} ${focusedIndex === idx ? 'focused' : ''}`}
               onClick={async () => {
                 if (!email.isRead && type !== 'sent' && type !== 'drafts' && email.id !== undefined) {
                   try {
