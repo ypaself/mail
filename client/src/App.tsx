@@ -206,7 +206,7 @@ function App() {
           if (response.ok) {
             const data = await response.json()
             const emails = Array.isArray(data.emails) ? data.emails : []
-            const unreadCount = emails.filter((email: any) => email.isRead === false).length
+            const unreadCount = emails.filter((email: any) => email.isRead === false && email.folder !== 'sent').length
             const key = endpoint === 'allmails' ? 'all' : endpoint
             counts[key] = unreadCount
             console.log(`${endpoint}: ${emails.length} total, ${unreadCount} unread`)
@@ -234,7 +234,7 @@ function App() {
               if (response.ok) {
                 const data = await response.json()
                 const emails = Array.isArray(data.emails) ? data.emails : []
-                const unreadCount = emails.filter((email: any) => email.isRead === false).length
+                const unreadCount = emails.filter((email: any) => email.isRead === false && email.folder !== 'sent').length
                 counts[`label-${label.id}`] = unreadCount
                 console.log(`${indent}label-${fullPath} (id: ${label.id}): ${emails.length} total, ${unreadCount} unread`)
               } else {
