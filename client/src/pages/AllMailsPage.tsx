@@ -935,7 +935,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTab('all')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <Mail size={16} />
+            <Inbox size={16} />
             All ({getCategoryCount('all').total})
             {getCategoryCount('all').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getCategoryCount('all').unread}</span>
@@ -946,7 +946,7 @@ export default function AllMailsPage({ token, onViewEmail, type = 'all', searchQ
             onClick={() => setActiveTab('primary')}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            <MailOpen size={16} />
+            <Star size={16} />
             Primary ({getCategoryCount('primary').total})
             {getCategoryCount('primary').unread > 0 && (
               <span style={{ backgroundColor: '#4285F4', color: 'white', marginLeft: '8px', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', minWidth: '24px', textAlign: 'center', display: 'inline-block' }}>{getCategoryCount('primary').unread}</span>
