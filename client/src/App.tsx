@@ -392,7 +392,7 @@ function App() {
     // Regular sidebar: render with hierarchy
     return (
       <div key={label.id}>
-        <div className="sidebar-label-item-wrapper" style={{ marginLeft: `${depth * 12}px` }}>
+        <div className={`sidebar-label-item-wrapper${openLabelMenu === label.id ? ' dropdown-open' : ''}`} style={{ marginLeft: `${depth * 12}px` }}>
           {/* Toggle Button - Only show if children exist */}
           {hasChildren && (
             <button
