@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Star, Clock, Archive, ShoppingCart, AlertCircle, Trash2, RotateCcw, LogOut, Tag } from 'lucide-react'
+import { Star, Clock, Archive, ShoppingCart, AlertCircle, Trash2, RotateCcw, LogOut, Tag, Paperclip, Reply, Forward } from 'lucide-react'
 
 interface Email {
   id?: number
@@ -11,6 +11,21 @@ interface Email {
   template?: string
   isStarred?: boolean
   isSnoozed?: boolean
+  hasAttachments?: boolean
+}
+
+function extractFileCardsHtml(body: string): string {
+  if (!body || !/data-file-card/i.test(body)) return ''
+  try {
+    const doc = new DOMParser().parseFromString(`<div>${body}</div>`, 'text/html')
+    const cards = doc.querySelectorAll('[data-file-card]')
+    if (!cards.length) return ''
+    return Array.from(cards).map(card => {
+      card.querySelectorAll('[data-remove-file], [data-upload-overlay], [data-folder-progress]').forEach(el => el.remove())
+      card.removeAttribute('contenteditable')
+      return card.outerHTML
+    }).join('')
+  } catch { return '' }
 }
 
 interface SentPageProps {
@@ -261,12 +276,12 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
           {sentEmails.map((email, idx) => (
             <div
               key={idx}
-              className="email-item"
+              className="email-item sent"
               onClick={() => onViewEmail(email)}
             >
               <div className="email-header">
                 <div className="email-from">
-                  <strong>To: {email.to}</strong>
+                  <><span style={{color:'#ff9800',fontWeight:700}}>To:</span>{' '}<span style={{fontWeight:600,color:'#111'}}>{(email.to||'').split('@')[0]}</span>{(email.to||'').includes('@')&&<span style={{fontWeight:300,color:'#555'}}>@{(email.to||'').split('@')[1]}</span>}</>
                   <button
                     className={`star-btn ${email.isStarred ? 'active' : ''}`}
                     onClick={(e) => handleToggleStar(email.id, e)}
@@ -338,10 +353,15 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
                     <Tag size={18} />
                   </button>
                 </div>
-                <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
+                <span className="email-date" style={{ color: '#222', fontWeight: 700, fontSize: '13px' }}>{new Date(email.date).toLocaleDateString()}</span>
               </div>
-              <div className="email-subject">{email.subject}</div>
+              <div className="email-subject" style={{ color: (!email.subject || email.subject === '(No subject)') ? '#888' : 'inherit', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                {(() => { const s = (email.subject || '').toLowerCase().trim(); if (s.startsWith('re:')) return <span className="reply-status-icon"><Reply size={14} /></span>; if (s.startsWith('fwd:') || s.startsWith('fw:')) return <span className="reply-status-icon"><Forward size={14} /></span>; return null; })()}
+                {(!!email.hasAttachments || /data-file-card/i.test(email.body || '')) && <Paperclip size={14} style={{ color: '#888', flexShrink: 0 }} />}
+                <span>{(() => { const raw = email.subject || ''; const low = raw.toLowerCase().trim(); if (low.startsWith('re:') || low.startsWith('fwd:') || low.startsWith('fw:')) return raw.slice(raw.indexOf(':') + 1).trim() || '(No subject)'; return raw || '(No subject)'; })()}</span>
+              </div>
               <div className="email-preview">{email.body.substring(0, 100)}...</div>
+              {(() => { const html = extractFileCardsHtml(email.body || ''); if (!html) return null; return <div style={{ display:'flex', flexDirection:'row', flexWrap:'nowrap', overflow:'hidden', alignItems:'center', gap:'6px', marginTop:'4px', lineHeight:0 }} dangerouslySetInnerHTML={{ __html: html }} /> })()}
             </div>
           ))}
         </div>

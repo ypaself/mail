@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
+import { Paperclip, X } from 'lucide-react'
 
 interface ComposePageProps {
   token: string
@@ -15,6 +16,8 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [attachments, setAttachments] = useState<File[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const location = useLocation()
 
   useEffect(() => {
@@ -30,8 +33,39 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
           setBody(`\n\n---------- Forwarded message ---------\nFrom: ${email.from}\nDate: ${new Date(email.date).toLocaleString()}\nSubject: ${email.subject}\nTo: ${email.to}\n\n${email.body}`)
         }
       }
+    } else {
+      // Pre-fill when opened via "New window" button from ChatMailPage
+      try {
+        const toVal = sessionStorage.getItem('newwin_compose_to')
+        const subjectVal = sessionStorage.getItem('newwin_compose_subject')
+        const bodyVal = sessionStorage.getItem('newwin_compose_body')
+        if (toVal) {
+          const toArr: string[] = JSON.parse(toVal)
+          if (toArr.length) setTo(toArr.join(', '))
+        }
+        if (subjectVal) setSubject(subjectVal)
+        if (bodyVal) {
+          // Strip HTML tags for plain-text compose area
+          const tmp = document.createElement('div')
+          tmp.innerHTML = bodyVal
+          const plainText = tmp.innerText || tmp.textContent || ''
+          if (plainText.trim()) setBody(plainText)
+        }
+        // Clean up keys so they don't persist on reload
+        ;['newwin_compose_to','newwin_compose_subject','newwin_compose_body','newwin_compose_cc','newwin_compose_bcc'].forEach(k => sessionStorage.removeItem(k))
+      } catch (_) {}
     }
   }, [location.state])
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setAttachments(prev => [...prev, ...Array.from(e.target.files!)])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,6 +89,7 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
           to,
           subject,
           text: body,
+          has_attachments: attachments.length > 0,
         }),
       })
 
@@ -65,6 +100,7 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
         setTo('')
         setSubject('')
         setBody('')
+        setAttachments([])
         setTimeout(onSent, 1500)
       } else {
         setError(data.error || 'Failed to send email')
@@ -134,7 +170,25 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
             />
           </div>
 
-          <div className="form-actions">
+          {attachments.length > 0 && (
+            <div className="attachments-list" style={{ marginBottom: '10px' }}>
+              {attachments.map((file, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#555', marginBottom: '4px' }}>
+                  <Paperclip size={13} />
+                  <span>{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(idx)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: '#999', display: 'flex', alignItems: 'center' }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="form-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="submit"
               disabled={sending}
@@ -142,6 +196,23 @@ export default function ComposePage({ token, userEmail, onSent, onCancel }: Comp
             >
               {sending ? 'Sending...' : 'Send Email'}
             </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+              className="cancel-btn"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Paperclip size={15} />
+              Attach Files
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
             <button
               type="button"
               onClick={onCancel}

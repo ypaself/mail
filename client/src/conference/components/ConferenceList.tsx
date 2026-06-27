@@ -20,7 +20,7 @@ export default function ConferenceList({
     <div className="conference-list-panel">
       <div className="list-header">
         <h3>Conferences</h3>
-        <input type="text" placeholder="Search..." className="search-input" />
+        <input type="text" id="conference-search" name="conference-search" placeholder="Search..." className="search-input" />
       </div>
       <div className="conference-list">
         {conferences.map((conf) => (

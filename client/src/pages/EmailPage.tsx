@@ -125,7 +125,7 @@ export default function EmailPage({ token, selectedEmail, onBack }: EmailPagePro
           {selectedEmail ? (
             <>
               <div className="view-header">
-                <h2>{selectedEmail.subject}</h2>
+                <h2 style={{ color: (!selectedEmail.subject || selectedEmail.subject === '(No subject)') ? '#888' : 'inherit' }}>{selectedEmail.subject || '(No subject)'}</h2>
                 <div className="view-actions">
                   <button className="icon-btn" title="Star">
                     <Star size={20} />

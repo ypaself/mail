@@ -29,7 +29,7 @@ A modern web-based mail app inspired by Gmail. Built with React (frontend) and N
    ```
 4. Start the frontend:
    ```sh
-   cd client && npm start
+   cd client && npm run dev
    ```
 
 ## Folder Structure

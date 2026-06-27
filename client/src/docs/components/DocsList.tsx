@@ -19,7 +19,7 @@ export default function DocsList({ docs, selectedDoc, onSelectDoc, onDeleteDoc }
   return (
     <div className="docs-sidebar">
       <div className="docs-search">
-        <input type="text" placeholder="Search documents..." />
+        <input type="text" id="docs-search" name="docs-search" placeholder="Search documents..." />
       </div>
       <div className="docs-list">
         {docs.map((doc) => (

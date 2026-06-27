@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Star, Send, Trash2 } from 'lucide-react'
+import { Star, Send, Trash2, Paperclip, PenLine } from 'lucide-react'
 
 interface Email {
   id?: number
@@ -10,6 +10,41 @@ interface Email {
   body: string
   isStarred?: boolean
   isDraft?: boolean
+  hasAttachments?: boolean
+}
+
+function bodyPreview(body: string, hasAttachments?: boolean): string {
+  if (!body) return ''
+  const hasDrawing = /<img[^>]*data-canvas-draft="1"[^>]*src="data:image/i.test(body)
+  const hasCanvas = /data-canvas-draft="1"|data-canvas-saved="1"/i.test(body)
+  const text = (() => {
+    try {
+      const _d = new DOMParser().parseFromString(`<div>${body}</div>`, 'text/html')
+      _d.querySelectorAll('[data-file-card],[data-canvas-draft],[data-canvas-saved]').forEach(el => el.remove())
+      return (_d.querySelector('div')?.textContent || '').replace(/\s+/g, ' ').trim()
+    } catch {
+      return body.replace(/<span\b[^>]*data-file-card[^>]*>[\s\S]*?<\/span>/gi, '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
+    }
+  })()
+  const parts: string[] = []
+  if (hasCanvas) parts.push(hasDrawing ? '📐 Drawing' : '📐 Canvas')
+  // file indicator removed
+  if (text) parts.push(text.substring(0, 80))
+  return parts.join(' · ')
+}
+
+function extractFileCardsHtml(body: string): string {
+  if (!body || !/data-file-card/i.test(body)) return ''
+  try {
+    const doc = new DOMParser().parseFromString(`<div>${body}</div>`, 'text/html')
+    const cards = doc.querySelectorAll('[data-file-card]')
+    if (!cards.length) return ''
+    return Array.from(cards).map(card => {
+      card.querySelectorAll('[data-remove-file], [data-upload-overlay], [data-folder-progress]').forEach(el => el.remove())
+      card.removeAttribute('contenteditable')
+      return card.outerHTML
+    }).join('')
+  } catch { return '' }
 }
 
 interface DraftsPageProps {
@@ -120,16 +155,17 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
 
       {draftEmails.length > 0 && (
         <div className="email-list">
-          {draftEmails.map((email, idx) => (
+          {draftEmails.map((email) => (
             <div
-              key={idx}
+              key={email.id ?? email.subject + email.date}
               className="email-item draft-item"
               onClick={() => onViewEmail(email)}
             >
               <div className="email-header">
                 <div className="email-from">
-                  <strong>{email.subject || '(No subject)'}</strong>
-                  <span className="draft-badge">Draft</span>
+                  <span style={{ color: '#ff5722', fontWeight: 700, marginRight: '4px', flexShrink: 0 }}>Draft:</span>
+                  {(!!email.hasAttachments || /data-file-card/i.test(email.body || '')) && <Paperclip size={13} style={{ color: '#888', flexShrink: 0, marginRight: '2px', verticalAlign: 'middle' }} />}
+                  <strong style={{ color: (!email.subject || email.subject === '(No subject)') ? '#888' : 'inherit' }}>{email.subject || '(No subject)'}</strong>
                   <button
                     className={`star-btn ${email.isStarred ? 'active' : ''}`}
                     onClick={(e) => handleToggleStar(email.id, e)}
@@ -138,10 +174,12 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
                     <Star size={18} fill={email.isStarred ? 'currentColor' : 'none'} />
                   </button>
                 </div>
-                <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
+                <button className={`email-canvas-btn${/data-canvas-(draft|saved)/.test(email.body||'')?' active':''}`} style={{ background:'none', border:'none', cursor:'default', padding:'0', boxSizing:'border-box', color:/data-canvas-(draft|saved)/.test(email.body||'')?'#7c4dff':'#ccc', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, height:'40px', width:'40px' }} title="Canvas board"><PenLine size={40} /></button>
+                <span className="email-date" style={{ color: '#ff5722', fontWeight: 700, fontSize: '13px' }}>{new Date(email.date).toLocaleDateString()}</span>
               </div>
               <div className="email-subject">To: {email.to}</div>
-              <div className="email-preview">{email.body.substring(0, 100)}...</div>
+              {(() => { const p = bodyPreview(email.body, email.hasAttachments); return p ? <div className="email-preview">{p}</div> : null; })()}
+              {(() => { const html = extractFileCardsHtml(email.body || ''); if (!html) return null; return <div style={{ display:'flex', flexDirection:'row', flexWrap:'nowrap', overflow:'hidden', alignItems:'center', gap:'6px', marginTop:'4px', lineHeight:0 }} dangerouslySetInnerHTML={{ __html: html }} /> })()}
               <div className="draft-actions">
                 <button
                   className="draft-send-btn"

@@ -5,6 +5,7 @@ interface SendEmailOptions {
   subject: string;
   text: string;
   html?: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }
 
 class MailService {
@@ -58,6 +59,7 @@ class MailService {
         subject: options.subject,
         text: options.text,
         html: options.html || options.text,
+        attachments: options.attachments,
       };
 
       const info = await this.transporter.sendMail(mailOptions);

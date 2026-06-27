@@ -19,7 +19,7 @@ export default function NotesList({ notes, selectedNote, onSelectNote, onDeleteN
   return (
     <div className="notes-sidebar">
       <div className="notes-search">
-        <input type="text" placeholder="Search notes..." />
+        <input type="text" id="notes-search" name="notes-search" placeholder="Search notes..." />
       </div>
       <div className="notes-list">
         {notes.map((note) => (

@@ -19,7 +19,7 @@ export default function ConversationList({
   return (
     <div className="chat-sidebar">
       <div className="chat-search">
-        <input type="text" placeholder="Search conversations..." />
+        <input type="text" id="chat-search" name="chat-search" placeholder="Search conversations..." />
       </div>
       <div className="chat-list">
         {conversations.map((conv) => (

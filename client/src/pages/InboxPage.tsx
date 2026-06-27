@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Star, Search } from 'lucide-react'
+import { Star, Search, Paperclip, Reply, Forward, PenLine } from 'lucide-react'
 
 interface Email {
   id?: number
@@ -12,6 +12,42 @@ interface Email {
   isStarred?: boolean
   isSnoozed?: boolean
   isRead?: boolean
+  folder?: string
+  hasAttachments?: boolean
+}
+
+function bodyPreview(body: string, hasAttachments?: boolean): string {
+  if (!body) return ''
+  const hasDrawing = /<img[^>]*data-canvas-draft="1"[^>]*src="data:image/i.test(body)
+  const hasCanvas = /data-canvas-draft="1"|data-canvas-saved="1"/i.test(body)
+  const text = (() => {
+    try {
+      const _d = new DOMParser().parseFromString(`<div>${body}</div>`, 'text/html')
+      _d.querySelectorAll('[data-file-card],[data-canvas-draft],[data-canvas-saved]').forEach(el => el.remove())
+      return (_d.querySelector('div')?.textContent || '').replace(/\s+/g, ' ').trim()
+    } catch {
+      return body.replace(/<span\b[^>]*data-file-card[^>]*>[\s\S]*?<\/span>/gi, '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
+    }
+  })()
+  const parts: string[] = []
+  if (hasCanvas) parts.push(hasDrawing ? '📐 Drawing' : '📐 Canvas')
+  // file indicator removed
+  if (text) parts.push(text.substring(0, 80))
+  return parts.join(' · ')
+}
+
+function extractFileCardsHtml(body: string): string {
+  if (!body || !/data-file-card/i.test(body)) return ''
+  try {
+    const doc = new DOMParser().parseFromString(`<div>${body}</div>`, 'text/html')
+    const cards = doc.querySelectorAll('[data-file-card]')
+    if (!cards.length) return ''
+    return Array.from(cards).map(card => {
+      card.querySelectorAll('[data-remove-file], [data-upload-overlay], [data-folder-progress]').forEach(el => el.remove())
+      card.removeAttribute('contenteditable')
+      return card.outerHTML
+    }).join('')
+  } catch { return '' }
 }
 
 interface SearchFilters {
@@ -231,7 +267,7 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
           {filteredEmails.map((email, idx) => (
             <div
               key={idx}
-              className="email-item"
+              className={`email-item ${!email.isRead ? 'unread' : ''}`}
               onClick={() => onViewEmail(email)}
             >
               <input type="checkbox" className="email-checkbox" />
@@ -244,12 +280,18 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
               </button>
               <div className="email-content">
                 <div className="email-header">
-                  <strong className="email-from">{email.from}</strong>
-                  <strong className="email-subject">{email.subject}</strong>
-                  <span className="email-preview"> - {email.body.substring(0, 60)}...</span>
+                  <span className="email-from"><span style={{fontWeight:600,color:email.isRead?'#111':'#0288d1'}}>{(email.from||'').split('@')[0]}</span>{(email.from||'').includes('@')&&<span style={{fontWeight:300,color:email.isRead?'#555':'#0288d1'}}>@{(email.from||'').split('@')[1]}</span>}</span>
+                  <strong className="email-subject" style={{ color: (!email.subject || email.subject === '(No subject)') ? '#888' : 'inherit', position: 'relative' }}>
+                    {(() => { const s = (email.subject || '').toLowerCase().trim(); if (s.startsWith('re:')) return <span className="reply-status-icon"><Reply size={14} /></span>; if (s.startsWith('fwd:') || s.startsWith('fw:')) return <span className="reply-status-icon"><Forward size={14} /></span>; return null; })()}
+                    {(!!email.hasAttachments || /data-file-card/i.test(email.body || '')) && <Paperclip size={13} style={{ color: '#888', flexShrink: 0, marginRight: '2px', verticalAlign: 'middle' }} />}
+                    <span>{(() => { const raw = email.subject || ''; const low = raw.toLowerCase().trim(); if (low.startsWith('re:') || low.startsWith('fwd:') || low.startsWith('fw:')) return raw.slice(raw.indexOf(':') + 1).trim() || '(No subject)'; return raw || '(No subject)'; })()}</span>
+                  </strong>
+                  {(() => { const p = bodyPreview(email.body, email.hasAttachments); return p ? <span className="email-preview"> - {p}</span> : null; })()}
                 </div>
+                {(() => { const html = extractFileCardsHtml(email.body || ''); if (!html) return null; return <div style={{ display:'flex', flexDirection:'row', flexWrap:'nowrap', overflow:'hidden', alignItems:'center', gap:'6px', marginTop:'4px', lineHeight:0 }} dangerouslySetInnerHTML={{ __html: html }} /> })()}
               </div>
-              <span className="email-date">{new Date(email.date).toLocaleDateString()}</span>
+              <button className={`email-canvas-btn${/data-canvas-(draft|saved)/.test(email.body||'')?' active':''}`} style={{ background:'none', border:'none', cursor:'default', padding:'0', boxSizing:'border-box', color:/data-canvas-(draft|saved)/.test(email.body||'')?'#7c4dff':'#ccc', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, height:'40px', width:'40px' }} title="Canvas board"><PenLine size={40} /></button>
+              <span className="email-date" style={{ color: email.folder === 'sent' ? '#222' : email.folder === 'drafts' ? '#ff5722' : !email.isRead ? '#0288d1' : '#666', fontWeight: 700, fontSize: '13px' }}>{new Date(email.date).toLocaleDateString()}</span>
             </div>
           ))}
         </div>
