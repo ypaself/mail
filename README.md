@@ -1,6 +1,6 @@
 # Mail App 
 
-A modern web-based mail app inspired by Gmail. Built with React (frontend) and Node.js/Express (backend), supporting IMAP/SMTP integration.
+A modern web-based mail app. Built with React (frontend) and Node.js/Express (backend), supporting IMAP/SMTP integration.
 
 ## Features
 - User authentication
