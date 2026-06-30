@@ -1,4 +1,4 @@
-# Mail App (Gmail Clone)
+# Mail App 
 
 A modern web-based mail app inspired by Gmail. Built with React (frontend) and Node.js/Express (backend), supporting IMAP/SMTP integration.
 
