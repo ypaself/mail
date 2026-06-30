@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: mail-app
+    env: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    domains:
+      - mail.dhoonda.com
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mail-db
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: IMAP_HOST
+        sync: false
+      - key: IMAP_PORT
+        sync: false
+      - key: IMAP_TLS
+        sync: false
+      - key: IMAP_USER
+        sync: false
+      - key: IMAP_PASS
+        sync: false
+
+databases:
+  - name: mail-db
+    plan: free
