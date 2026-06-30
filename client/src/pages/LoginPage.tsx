@@ -21,7 +21,7 @@ export default function LoginPage({ onLogin, onForgotPassword }: LoginPageProps)
 
     try {
       const endpoint = isLogin ? '/api/login' : '/api/register'
-      const response = await fetch(`http://localhost:5050${endpoint}`, {
+      const response = await fetch(`${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

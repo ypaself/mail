@@ -63,7 +63,7 @@ const getSnoozeOptions = () => {
   ];
 }
 
-const API = 'http://localhost:5050'
+const API = ``
 
 export default function DeletePage({ token, onViewEmail }: DeletePageProps) {
   const [emails, setEmails] = useState<Email[]>([])

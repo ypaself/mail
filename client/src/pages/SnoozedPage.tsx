@@ -67,7 +67,7 @@ export default function SnoozedPage({ token, onViewEmail }: SnoozedPageProps) {
     setLoading(true)
     setError('')
     try {
-      const snoozedResponse = await fetch('http://localhost:5050/api/snoozed', {
+      const snoozedResponse = await fetch(`/api/snoozed`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -91,7 +91,7 @@ export default function SnoozedPage({ token, onViewEmail }: SnoozedPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
+      const response = await fetch(`/api/emails/${emailId}/snooze`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,

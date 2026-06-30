@@ -66,7 +66,7 @@ export default function StarredPage({ token, onViewEmail }: StarredPageProps) {
     setLoading(true)
     setError('')
     try {
-      const starredResponse = await fetch('http://localhost:5050/api/starred', {
+      const starredResponse = await fetch(`/api/starred`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -90,7 +90,7 @@ export default function StarredPage({ token, onViewEmail }: StarredPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

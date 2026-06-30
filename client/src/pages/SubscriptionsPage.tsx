@@ -67,7 +67,7 @@ export default function SubscriptionsPage({ token, onViewEmail }: SubscriptionsP
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/subscriptions', {
+      const response = await fetch(`/api/subscriptions`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -91,7 +91,7 @@ export default function SubscriptionsPage({ token, onViewEmail }: SubscriptionsP
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -112,7 +112,7 @@ export default function SubscriptionsPage({ token, onViewEmail }: SubscriptionsP
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/subscription`, {
+      const response = await fetch(`/api/emails/${emailId}/subscription`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

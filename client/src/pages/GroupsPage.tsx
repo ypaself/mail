@@ -1,7 +1,68 @@
-import { useEffect, useRef, useState } from 'react'
-import { Plus, Trash2, X, Users, Calendar, MapPin, Camera, Pencil, User, Check, AlertCircle, Loader2, Send, CalendarPlus, UserPlus, LogOut, Settings, ChevronLeft, ChevronRight, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Indent, Outdent, Smile, Paperclip, Link2, Undo2, Redo2 } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Plus, Trash2, X, Users, Calendar, Clock, MapPin, Camera, Pencil, User, Check, AlertCircle, Loader2, Send, UserPlus, LogOut, Settings, ChevronLeft, ChevronRight, ChevronDown, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Indent, Outdent, Smile, Paperclip, Link2, Undo2, Redo2, Mail, Shield, ShieldOff, SlidersHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import AllMailsPage from './AllMailsPage'
+
+const GroupsIcon = ({ size = 22 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* left half person */}
+    <path d="M6,3.8 A3.2,3.2 0 0,0 6,10.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    <path d="M0,19 A6,6 0 0,1 6,13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    {/* right half person */}
+    <path d="M18,3.8 A3.2,3.2 0 0,1 18,10.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    <path d="M24,19 A6,6 0 0,0 18,13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    {/* middle full person */}
+    <circle cx="12" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M6,19 A6,6 0 0,1 18,19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
+
+// Shared "+" pill badge — used both inside GroupsPlusIcon and standalone (e.g. the
+// Event button's calendar icon) so every "+" badge in the Groups page stays pixel-identical.
+const PlusBadge = ({ size = 14, color = '#1976d2' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="5.5" cy="5.5" r="5.5" fill={color} />
+    <line x1="5.5" y1="2.8" x2="5.5" y2="8.2" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
+    <line x1="2.8" y1="5.5" x2="8.2" y2="5.5" stroke="white" strokeWidth="1.6" strokeLinecap="round" />
+  </svg>
+)
+
+const GroupsPlusIcon = ({ size = 20, badge = 'plus', color = 'currentColor', middleColor = color, sideStrokeWidth = 1.5, badgeColor, hideLeft = false }: { size?: number; badge?: 'plus' | 'arrow' | 'pencil'; color?: string; middleColor?: string; sideStrokeWidth?: number; badgeColor?: string; hideLeft?: boolean }) => (
+  <svg width={size} height={size * (26 / 36)} viewBox="0 0 36 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* left half person */}
+    {!hideLeft && (
+      <>
+        <path d="M8,4.8 A3.2,3.2 0 0,0 8,11.2" stroke={color} strokeWidth={sideStrokeWidth} strokeLinecap="round" opacity="0.6" />
+        <path d="M2,20 A6,6 0 0,1 8,14" stroke={color} strokeWidth={sideStrokeWidth} strokeLinecap="round" opacity="0.6" />
+      </>
+    )}
+    {/* right half person */}
+    <path d="M20,4.8 A3.2,3.2 0 0,1 20,11.2" stroke={color} strokeWidth={sideStrokeWidth} strokeLinecap="round" opacity="0.6" />
+    <path d="M26,20 A6,6 0 0,0 20,14" stroke={color} strokeWidth={sideStrokeWidth} strokeLinecap="round" opacity="0.6" />
+    {/* middle full person */}
+    <circle cx="14" cy="8" r="3.2" stroke={middleColor} strokeWidth="1.5" />
+    <path d="M8,20 A6,6 0 0,1 20,20" stroke={middleColor} strokeWidth="1.5" strokeLinecap="round" />
+    {/* badge, in its own circle pill */}
+    {badge === 'arrow' ? (
+      <>
+        <circle cx="27.5" cy="17" r="6.3" fill={badgeColor || '#d32f2f'} />
+        <path d="M24.05,17 L30.4,17 M27.2,13.6 L30.4,17 L27.2,20.4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </>
+    ) : badge === 'pencil' ? (
+      <>
+        <circle cx="27.5" cy="17" r="6.3" fill={badgeColor || '#1976d2'} />
+        <line x1="30.3" y1="13.8" x2="26.5" y2="17.6" stroke="white" strokeWidth="2" strokeLinecap="round" />
+        <path d="M26.3,19.2 L24.3,19.8 L24.9,17.8 Z" fill="white" />
+      </>
+    ) : (
+      <>
+        <circle cx="27.5" cy="17" r="6.3" fill={badgeColor || '#1976d2'} />
+        <line x1="27.5" y1="13.9" x2="27.5" y2="20.1" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
+        <line x1="24.4" y1="17" x2="30.6" y2="17" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
+      </>
+    )}
+  </svg>
+)
 
 interface Group {
   id: number
@@ -16,6 +77,12 @@ interface Group {
   // mirrors how an Outlook/Google Group shows up in a member's own client.
   isMemberOf?: boolean
   ownerEmail?: string
+  // True when isMemberOf and the current user has been promoted to co-owner — grants
+  // every owner privilege except deleting the group.
+  isCoOwner?: boolean
+  totalEmailCount?: number
+  unreadEmailCount?: number
+  scheduleEmailCount?: number
 }
 
 const AVATAR_COLORS = [
@@ -115,6 +182,7 @@ interface Email {
   isSnoozed?: boolean
   isReport?: boolean
   label?: string | null
+  groupEmail?: string
 }
 
 interface GroupEvent {
@@ -152,13 +220,24 @@ interface GroupsPageProps {
   onRefreshCounts?: () => void
   // Opens the Chat Mail composer pre-filled with these recipients/subject — used so
   // "Compose to group" uses the same rich composer as the rest of the chat mail flow.
-  onComposeToGroup?: (to: string[], subject: string, groupLabel: string, groupId: number) => void
+  // groupEmail/hasHistory let the caller jump straight into the group's existing thread
+  // (with all prior messages) instead of a blank compose when one already exists.
+  onComposeToGroup?: (to: string[], subject: string, groupLabel: string, groupId: number, groupEmail: string, hasHistory: boolean) => void
+  // When set, a group's thread is open — rendered in place of the normal tabs/details
+  // panel below, while this page's own group list stays visible on the left.
+  chatViewActive?: boolean
+  chatViewElement?: ReactNode
+  onCloseChatView?: () => void
 }
 
-export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCounts, onComposeToGroup }: GroupsPageProps) {
+export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCounts, onComposeToGroup, chatViewActive, chatViewElement, onCloseChatView }: GroupsPageProps) {
   const [groups, setGroups] = useState<Group[]>([])
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null)
   const [members, setMembers] = useState<string[]>([])
+  // email (lowercase) -> 'member' | 'co-owner' — co-owners get every owner privilege
+  // except deleting the group itself.
+  const [memberRoles, setMemberRoles] = useState<Record<string, string>>({})
+  const [roleUpdatingEmail, setRoleUpdatingEmail] = useState<string | null>(null)
   const [groupEmails, setGroupEmails] = useState<Email[]>([])
   const [groupEvents, setGroupEvents] = useState<GroupEvent[]>([])
   const [activeTab, setActiveTab] = useState<GroupTab>('emails')
@@ -166,6 +245,20 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
   const [groupModalMode, setGroupModalMode] = useState<'create' | 'edit' | null>(null)
   const [editGroupId, setEditGroupId] = useState<number | null>(null)
   const [showLabelModal, setShowLabelModal] = useState(false)
+  const [confirmLeaveGroup, setConfirmLeaveGroup] = useState<Group | null>(null)
+  const [confirmDeleteGroupId, setConfirmDeleteGroupId] = useState<number | null>(null)
+  const [deleteUnderstoodChecked, setDeleteUnderstoodChecked] = useState(false)
+  const [confirmDiscardGroupEdit, setConfirmDiscardGroupEdit] = useState(false)
+  const originalEditFieldsRef = useRef<{ name: string; color: string; description: string; photoUrl: string | null; emailLocal: string } | null>(null)
+  const [deletedGroups, setDeletedGroups] = useState<(Group & { deletedAt: string })[]>([])
+  const [restoringGroupId, setRestoringGroupId] = useState<number | null>(null)
+  const [groupsSectionExpanded, setGroupsSectionExpanded] = useState(true)
+  const [deletedSectionExpanded, setDeletedSectionExpanded] = useState(false)
+  type GroupsFilter = 'all' | 'owned' | 'member' | 'co-owner'
+  type GroupsSortBy = 'newest' | 'name' | 'members'
+  const [groupsFilter, setGroupsFilter] = useState<GroupsFilter>('all')
+  const [groupsSortBy, setGroupsSortBy] = useState<GroupsSortBy>('newest')
+  const [groupsFilterMenuOpen, setGroupsFilterMenuOpen] = useState(false)
   const [newLabelName, setNewLabelName] = useState('')
   const [newLabelColor, setNewLabelColor] = useState('#9c27b0')
   const [newGroupName, setNewGroupName] = useState('')
@@ -202,13 +295,13 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  const colors = ['#1976d2', '#d32f2f', '#388e3c', '#f57c00', '#7b1fa2', '#0097a7', '#c2185b', '#ff6f00', '#00796b', '#1565c0']
+  const colors = ['#1976d2', '#d32f2f', '#388e3c', '#f57c00', '#7b1fa2', '#0097a7', '#c2185b', '#ff6f00', '#00796b']
   const ownEmail = localStorage.getItem('userEmail') || ''
 
   const ensureSelfMember = async (groupId: number, currentMembers: string[]) => {
     if (!ownEmail || currentMembers.some(m => m.toLowerCase() === ownEmail.toLowerCase())) return currentMembers
     try {
-      await fetch(`http://localhost:5050/api/groups/${groupId}/members`, {
+      await fetch(`/api/groups/${groupId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ email: ownEmail }),
@@ -221,7 +314,15 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
 
   useEffect(() => {
     fetchGroups()
+    fetchDeletedGroups()
   }, [token])
+
+  useEffect(() => {
+    if (!groupsFilterMenuOpen) return
+    const close = () => setGroupsFilterMenuOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [groupsFilterMenuOpen])
 
   // Drag-to-move / drag-to-resize for the event day-view block. Pixel deltas map 1:1 to
   // minutes (DAY_VIEW_PX_PER_MIN), snapped to 5-minute increments, with a 15-minute floor.
@@ -266,8 +367,8 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setError('')
     try {
       const [ownedRes, memberOfRes] = await Promise.all([
-        fetch('http://localhost:5050/api/groups', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('http://localhost:5050/api/groups/member-of', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/groups`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/groups/member-of`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
       if (ownedRes.ok) {
         const ownedData = await ownedRes.json()
@@ -278,7 +379,9 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
         ]
         setGroups(allGroups)
         if (allGroups.length > 0) {
-          handleSelectGroup(allGroups[0])
+          const lastId = sessionStorage.getItem('lastSelectedGroupId')
+          const restored = lastId ? allGroups.find(g => String(g.id) === lastId) : null
+          handleSelectGroup(restored || allGroups[0])
         }
       } else {
         setError('Failed to fetch groups')
@@ -303,7 +406,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setEmailAvailability('checking')
     emailCheckTimer.current = setTimeout(async () => {
       try {
-        const url = `http://localhost:5050/api/groups/check-email?local=${encodeURIComponent(local)}${excludeId ? `&excludeId=${excludeId}` : ''}`
+        const url = `/api/groups/check-email?local=${encodeURIComponent(local)}${excludeId ? `&excludeId=${excludeId}` : ''}`
         const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         const data = await response.json()
         // Ignore this result if a newer check has started since (avoids a slower, stale
@@ -347,6 +450,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     resetGroupModalFields()
     setEditGroupId(null)
     setGroupModalMode('create')
+    originalEditFieldsRef.current = null
   }
 
   const handleOpenEditModal = (group: Group) => {
@@ -360,11 +464,38 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setEmailLocalEditedByUser(true)
     setEmailAvailability('available')
     setGroupModalMode('edit')
+    originalEditFieldsRef.current = { name: group.name, color: group.color, description: group.description || '', photoUrl: group.photoUrl || null, emailLocal: existingLocal }
+  }
+
+  const hasUnsavedGroupEdits = () => {
+    if (groupModalMode === 'create') {
+      return !!(newGroupName.trim() || newGroupDescription.trim() || newGroupPhotoUrl)
+    }
+    const original = originalEditFieldsRef.current
+    if (!original) return false
+    return (
+      newGroupName !== original.name ||
+      newGroupColor !== original.color ||
+      newGroupDescription !== original.description ||
+      newGroupPhotoUrl !== original.photoUrl ||
+      newGroupEmailLocal !== original.emailLocal
+    )
+  }
+
+  const handleDiscardClick = () => {
+    if (hasUnsavedGroupEdits()) {
+      setConfirmDiscardGroupEdit(true)
+    } else {
+      handleCloseGroupModal()
+    }
   }
 
   const handleCloseGroupModal = () => {
     setGroupModalMode(null)
     setEditGroupId(null)
+    setConfirmDeleteGroupId(null)
+    setDeleteUnderstoodChecked(false)
+    setConfirmDiscardGroupEdit(false)
     resetGroupModalFields()
   }
 
@@ -373,7 +504,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const response = await fetch('http://localhost:5050/api/attachments/upload', {
+      const response = await fetch(`/api/attachments/upload`, {
         method: 'POST',
         body: formData,
       })
@@ -402,7 +533,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/groups', {
+      const response = await fetch(`/api/groups`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -440,7 +571,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${editGroupId}`, {
+      const response = await fetch(`/api/groups/${editGroupId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -467,10 +598,11 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
   }
 
   const handleDeleteGroup = async (groupId: number) => {
-    if (!confirm('Are you sure you want to delete this group?')) return
+    setConfirmDeleteGroupId(null)
+    setDeleteUnderstoodChecked(false)
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${groupId}`, {
+      const response = await fetch(`/api/groups/${groupId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -483,7 +615,8 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
           setGroupEvents([])
         }
         handleCloseGroupModal()
-        setToast('Group deleted')
+        fetchDeletedGroups()
+        setToast('Group deleted — you can restore it within 30 days')
         setTimeout(() => setToast(null), 3000)
       } else {
         setError('Failed to delete group')
@@ -495,27 +628,66 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     }
   }
 
+  const fetchDeletedGroups = async () => {
+    try {
+      const res = await fetch(`/api/groups/deleted`, { headers: { Authorization: `Bearer ${token}` } })
+      if (res.ok) {
+        const data = await res.json()
+        setDeletedGroups(data.groups)
+      }
+    } catch (err) {
+      console.error('Failed to fetch deleted groups:', err)
+    }
+  }
+
+  const handleRestoreGroup = async (groupId: number) => {
+    setRestoringGroupId(groupId)
+    try {
+      const res = await fetch(`/api/groups/${groupId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        setDeletedGroups(prev => prev.filter(g => g.id !== groupId))
+        await fetchGroups()
+        setToast('Group restored')
+        setTimeout(() => setToast(null), 3000)
+      } else {
+        setError('Failed to restore group')
+      }
+    } catch (err) {
+      setError('Failed to restore group')
+    } finally {
+      setRestoringGroupId(null)
+    }
+  }
+
   const handleSelectGroup = async (group: Group) => {
     setSelectedGroup(group)
+    // Persisted so navigating away (e.g. into a group compose window) and back restores
+    // the same group instead of always falling back to the first one in the list.
+    sessionStorage.setItem('lastSelectedGroupId', String(group.id))
     setActiveTab('emails')
     setEmailFilter('all')
     setLoading(true)
     try {
       const [membersRes, emailsRes, eventsRes] = await Promise.all([
-        fetch(`http://localhost:5050/api/groups/${group.id}/members`, {
+        fetch(`/api/groups/${group.id}/members`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`http://localhost:5050/api/groups/${group.id}/emails?limit=50`, {
+        fetch(`/api/groups/${group.id}/emails?limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(`http://localhost:5050/api/groups/${group.id}/events`, {
+        fetch(`/api/groups/${group.id}/events`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ])
 
       if (membersRes.ok) {
         const data = await membersRes.json()
-        setMembers(await ensureSelfMember(group.id, data.members))
+        const fetchedMembers: { email: string; role: string }[] = data.members
+        setMemberRoles(Object.fromEntries(fetchedMembers.map(m => [m.email.toLowerCase(), m.role])))
+        setMembers(await ensureSelfMember(group.id, fetchedMembers.map(m => m.email)))
       }
 
       if (emailsRes.ok) {
@@ -538,7 +710,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     if (!newMemberEmail.trim() || !selectedGroup) return
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${selectedGroup.id}/members`, {
+      const response = await fetch(`/api/groups/${selectedGroup.id}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -565,7 +737,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     if (!selectedGroup) return
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${selectedGroup.id}/members/${encodeURIComponent(email)}`, {
+      const response = await fetch(`/api/groups/${selectedGroup.id}/members/${encodeURIComponent(email)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -585,10 +757,10 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
 
   const handleLeaveGroup = async (group: Group) => {
     if (!ownEmail) return
-    if (!confirm(`Leave "${group.name}"? You'll stop seeing this group and its emails.`)) return
+    setConfirmLeaveGroup(null)
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${group.id}/members/${encodeURIComponent(ownEmail)}`, {
+      const response = await fetch(`/api/groups/${group.id}/members/${encodeURIComponent(ownEmail)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -649,11 +821,11 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const response = await fetch('http://localhost:5050/api/attachments/upload', { method: 'POST', body: formData })
+      const response = await fetch(`/api/attachments/upload`, { method: 'POST', body: formData })
       if (response.ok) {
         const data = await response.json()
         eventDescriptionRef.current?.focus()
-        document.execCommand('insertHTML', false, `<a href="http://localhost:5050${data.url}" target="_blank" rel="noopener noreferrer">📎 ${data.name}</a>&nbsp;`)
+        document.execCommand('insertHTML', false, `<a href="${data.url}" target="_blank" rel="noopener noreferrer">📎 ${data.name}</a>&nbsp;`)
         setNewEventDescription(eventDescriptionRef.current?.innerHTML || '')
       } else {
         setError('Failed to upload attachment')
@@ -692,7 +864,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setLoading(true)
     setError('')
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${selectedGroup.id}/events`, {
+      const response = await fetch(`/api/groups/${selectedGroup.id}/events`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -731,7 +903,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     if (!confirm('Delete this event?')) return
     setLoading(true)
     try {
-      const response = await fetch(`http://localhost:5050/api/groups/${selectedGroup.id}/events/${eventId}`, {
+      const response = await fetch(`/api/groups/${selectedGroup.id}/events/${eventId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -757,7 +929,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/custom-labels', {
+      const response = await fetch(`/api/custom-labels`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -783,13 +955,48 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
   }
 
   const handleComposeToGroup = () => {
-    const subject = `To ${selectedGroup?.name}`
+    const subject = ''
     if (onComposeToGroup && selectedGroup) {
-      onComposeToGroup(members, subject, selectedGroup.name, selectedGroup.id)
+      onComposeToGroup(members, subject, selectedGroup.name, selectedGroup.id, selectedGroup.groupEmail || '', groupEmails.length > 0)
     } else {
       navigate('/compose', { state: { to: members.join(', '), subject } })
     }
   }
+
+  const handleSetMemberRole = async (email: string, role: 'member' | 'co-owner') => {
+    if (!selectedGroup) return
+    setRoleUpdatingEmail(email)
+    try {
+      const res = await fetch(`/api/groups/${selectedGroup.id}/members/${encodeURIComponent(email)}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role }),
+      })
+      if (res.ok) {
+        setMemberRoles(prev => ({ ...prev, [email.toLowerCase()]: role }))
+        setToast(role === 'co-owner' ? 'Promoted to co-owner' : 'Removed as co-owner')
+        setTimeout(() => setToast(null), 3000)
+      } else {
+        setError('Failed to update member role')
+      }
+    } catch (err) {
+      setError('Failed to update member role')
+    } finally {
+      setRoleUpdatingEmail(null)
+    }
+  }
+
+  // A co-owner gets every owner privilege except deleting the group — gates edit/add
+  // member/add event UI the same way the owner-only checks already do.
+  const canManage = !selectedGroup?.isMemberOf || !!selectedGroup?.isCoOwner
+
+  const totalUnreadCount = groups.reduce((acc, g) => acc + (g.unreadEmailCount || 0), 0)
+  const totalScheduledCount = groups.reduce((acc, g) => acc + (g.scheduleEmailCount || 0), 0)
+  const totalTotalCount = groups.reduce((acc, g) => acc + (g.totalEmailCount || 0), 0)
+
+  const totalDeletedUnreadCount = deletedGroups.reduce((acc, g) => acc + (g.unreadEmailCount || 0), 0)
+  const totalDeletedScheduledCount = deletedGroups.reduce((acc, g) => acc + (g.scheduleEmailCount || 0), 0)
+  const totalDeletedTotalCount = deletedGroups.reduce((acc, g) => acc + (g.totalEmailCount || 0), 0)
 
   return (
     <div className="groups-page">
@@ -800,44 +1007,276 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
       <div className="groups-split">
         <div className="groups-sidebar">
           <div className="groups-header">
-            <h2>Groups</h2>
-            <button className="new-group-btn" onClick={handleOpenCreateModal} title="Create new group">
-              <Plus size={20} />
-            </button>
+            <div className="groups-header-title">
+              <GroupsIcon size={28} />
+              <h2>Groups</h2>
+            </div>
+            <div className="new-group-btn-wrapper">
+              <button className="new-group-btn" onClick={handleOpenCreateModal} title="Create new group">
+                <GroupsPlusIcon size={46} color="#81c784" middleColor="black" sideStrokeWidth={2.2} badgeColor="#43a047" />
+              </button>
+              <span className="new-group-btn-label">New</span>
+              <span className="new-group-btn-label">Group</span>
+            </div>
           </div>
 
-          {groups.length === 0 ? (
-            <div className="groups-empty">
-              <Users size={48} />
-              <p>No groups yet</p>
-              <button className="btn-primary" onClick={handleOpenCreateModal}>Create your first group</button>
-            </div>
-          ) : (
-            <div className="groups-list">
-              {groups.map(group => (
-                <div
-                  key={group.id}
-                  className={`group-card ${selectedGroup?.id === group.id ? 'selected' : ''}`}
-                  onClick={() => handleSelectGroup(group)}
-                >
-                  <div className="group-avatar" style={{ backgroundColor: group.color }}>
-                    {group.name.charAt(0).toUpperCase()}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', borderBottom: '1px solid #eee' }}>
+            <button
+              className="groups-section-toggle"
+              onClick={() => setGroupsSectionExpanded(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', padding: '8px 16px', fontSize: '13px', fontWeight: 600, color: '#444', cursor: 'pointer', flex: 1, textAlign: 'left' }}
+            >
+              {groupsSectionExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <Users size={14} />
+              <span>Groups ({groups.length})</span>
+              <div className="count-container" style={{ marginRight: '4px' }}>
+                {totalUnreadCount > 0 && (
+                  <span className="unread-badge">{totalUnreadCount}</span>
+                )}
+                {totalScheduledCount > 0 && (
+                  <span className="unread-badge scheduled-upcoming-badge" style={{ backgroundColor: '#fb8c00' }}>{totalScheduledCount}</span>
+                )}
+                {totalTotalCount > 0 && (
+                  <span className="total-count">{totalTotalCount}</span>
+                )}
+              </div>
+            </button>
+            <button
+              className="groups-filter-btn"
+              onClick={(e) => { e.stopPropagation(); setGroupsFilterMenuOpen(v => !v) }}
+              title="Filter & sort groups"
+              style={{ background: 'none', border: 'none', padding: '6px 12px', cursor: 'pointer', color: (groupsFilter !== 'all' || groupsSortBy !== 'newest') ? '#1976d2' : '#888', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+            {groupsFilterMenuOpen && (
+              <div
+                className="groups-filter-menu"
+                onClick={(e) => e.stopPropagation()}
+                style={{ position: 'absolute', top: '100%', right: '8px', zIndex: 10, backgroundColor: 'white', border: '1px solid #ddd', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', minWidth: '180px', padding: '4px 0' }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#999', letterSpacing: '0.4px', padding: '8px 12px 4px' }}>FILTER</div>
+                {([
+                  { key: 'all', label: 'All groups' },
+                  { key: 'owned', label: 'Owned by me' },
+                  { key: 'co-owner', label: 'Co-owner' },
+                  { key: 'member', label: 'Member' },
+                ] as { key: GroupsFilter; label: string }[]).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setGroupsFilter(opt.key); setGroupsFilterMenuOpen(false) }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: '8px 12px', fontSize: '13px', color: groupsFilter === opt.key ? '#1976d2' : '#333', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    {opt.label}
+                    {groupsFilter === opt.key && <Check size={14} />}
+                  </button>
+                ))}
+                <div style={{ borderTop: '1px solid #eee', margin: '4px 0' }} />
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#999', letterSpacing: '0.4px', padding: '8px 12px 4px' }}>SORT BY</div>
+                {([
+                  { key: 'newest', label: 'Newest first' },
+                  { key: 'name', label: 'Name (A-Z)' },
+                  { key: 'members', label: 'Most members' },
+                ] as { key: GroupsSortBy; label: string }[]).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setGroupsSortBy(opt.key); setGroupsFilterMenuOpen(false) }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: '8px 12px', fontSize: '13px', color: groupsSortBy === opt.key ? '#1976d2' : '#333', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    {opt.label}
+                    {groupsSortBy === opt.key && <Check size={14} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {groupsSectionExpanded && (() => {
+            const filteredGroups = groups.filter(g => {
+              if (groupsFilter === 'all') return true
+              if (groupsFilter === 'owned') return !g.isMemberOf
+              if (groupsFilter === 'co-owner') return !!g.isMemberOf && !!g.isCoOwner
+              return !!g.isMemberOf && !g.isCoOwner
+            }).sort((a, b) => {
+              if (groupsSortBy === 'name') return a.name.localeCompare(b.name)
+              if (groupsSortBy === 'members') return b.memberCount - a.memberCount
+              return 0 // 'newest' — groups are already fetched newest-first from the server
+            })
+            return filteredGroups.length === 0 ? (
+              <div className="groups-empty">
+                <Users size={48} />
+                <p>{groups.length === 0 ? 'No groups yet' : 'No groups match this filter'}</p>
+                {groups.length === 0 && <button className="btn-primary" onClick={handleOpenCreateModal}>Create your first group</button>}
+              </div>
+            ) : (
+              <div className="groups-list sidebar-section">
+                {filteredGroups.map(group => (
+                  <div key={group.id} className="sidebar-folder-wrapper">
+                    <button
+                      className={`sidebar-item ${selectedGroup?.id === group.id ? 'active' : ''}`}
+                      title={`${group.name} (${group.memberCount} member${group.memberCount !== 1 ? 's' : ''}${group.isMemberOf ? `, ${group.isCoOwner ? 'Co-owner' : 'Member'}` : ', Owner'})`}
+                      onClick={() => {
+                        // Switching groups while a thread is embedded would otherwise leave
+                        // the old group's thread showing next to the newly selected group.
+                        if (chatViewActive && selectedGroup?.id !== group.id) onCloseChatView?.()
+                        handleSelectGroup(group)
+                      }}
+                    >
+                      <div className="group-avatar-mini" style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        backgroundColor: group.color,
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        flexShrink: 0,
+                        marginRight: '8px',
+                        marginLeft: '8px'
+                      }}>
+                        {group.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="group-name-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, textAlign: 'left' }}>
+                        <span className="group-name-text" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '14.5px', fontWeight: 500, lineHeight: '1.2' }}>
+                          {group.name}
+                        </span>
+                        <span className="group-member-count-subtext" style={{ fontSize: '11.5px', color: '#666', marginTop: '1px', lineHeight: '1.2' }}>
+                          {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="count-container">
+                        {group.unreadEmailCount !== undefined && group.unreadEmailCount > 0 && (
+                          <span className="unread-badge">{group.unreadEmailCount}</span>
+                        )}
+                        {group.scheduleEmailCount !== undefined && group.scheduleEmailCount > 0 && (
+                          <span className="unread-badge scheduled-upcoming-badge" style={{ backgroundColor: '#fb8c00' }}>{group.scheduleEmailCount}</span>
+                        )}
+                        {group.totalEmailCount !== undefined && group.totalEmailCount > 0 && (
+                          <span className="total-count">{group.totalEmailCount}</span>
+                        )}
+                      </div>
+                    </button>
                   </div>
-                  <div className="group-info">
-                    <div className="group-name">{group.name}</div>
-                    <div className="group-member-count">
-                      {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
-                      {group.isMemberOf && <span className="group-member-badge">Member</span>}
-                    </div>
-                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {deletedGroups.length > 0 && (
+            <>
+              <button
+                className="groups-section-toggle"
+                onClick={() => setDeletedSectionExpanded(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', borderTop: '1px solid #eee', borderBottom: '1px solid #eee', padding: '8px 16px', fontSize: '13px', fontWeight: 600, color: '#444', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+              >
+                {deletedSectionExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <Trash2 size={14} />
+                <span>Deleted groups ({deletedGroups.length})</span>
+                <div className="count-container" style={{ marginRight: '4px', opacity: 0.6 }}>
+                  {totalDeletedUnreadCount > 0 && (
+                    <span className="unread-badge">{totalDeletedUnreadCount}</span>
+                  )}
+                  {totalDeletedScheduledCount > 0 && (
+                    <span className="unread-badge scheduled-upcoming-badge" style={{ backgroundColor: '#fb8c00' }}>{totalDeletedScheduledCount}</span>
+                  )}
+                  {totalDeletedTotalCount > 0 && (
+                    <span className="total-count">{totalDeletedTotalCount}</span>
+                  )}
                 </div>
-              ))}
-            </div>
+              </button>
+
+              {deletedSectionExpanded && (
+                <div className="groups-list sidebar-section">
+                  {deletedGroups.map(group => {
+                    const deletedDate = new Date(group.deletedAt)
+                    const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - deletedDate.getTime()) / (1000 * 60 * 60 * 24)))
+                    return (
+                      <div key={group.id} className="sidebar-folder-wrapper deleted-group-wrapper">
+                        <div
+                          className="sidebar-item"
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'default',
+                            paddingRight: '4px'
+                          }}
+                          title={`${group.name} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left to restore)`}
+                        >
+                          <div className="group-avatar-mini" style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor: '#999',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            flexShrink: 0,
+                            marginRight: '8px',
+                            marginLeft: '8px'
+                          }}>
+                            {group.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="group-name-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <span className="group-name-text" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '14.5px', fontWeight: 500, color: '#888', lineHeight: '1.2' }}>
+                              {group.name}
+                            </span>
+                            <span className="group-member-count-subtext" style={{ fontSize: '11.5px', color: '#999', marginTop: '1px', lineHeight: '1.2' }}>
+                              {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="count-container" style={{ opacity: 0.6, marginRight: '4px' }}>
+                            {group.unreadEmailCount !== undefined && group.unreadEmailCount > 0 && (
+                              <span className="unread-badge">{group.unreadEmailCount}</span>
+                            )}
+                            {group.scheduleEmailCount !== undefined && group.scheduleEmailCount > 0 && (
+                              <span className="unread-badge scheduled-upcoming-badge" style={{ backgroundColor: '#fb8c00' }}>{group.scheduleEmailCount}</span>
+                            )}
+                            {group.totalEmailCount !== undefined && group.totalEmailCount > 0 && (
+                              <span className="total-count">{group.totalEmailCount}</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '11px', color: '#999', marginRight: '6px', flexShrink: 0 }}>
+                            {daysLeft}d left
+                          </span>
+                          <button
+                            className="btn-secondary restore-group-btn"
+                            style={{
+                              padding: '2px 8px',
+                              fontSize: '11px',
+                              borderRadius: '12px',
+                              height: '24px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: '1',
+                              flexShrink: 0
+                            }}
+                            onClick={(e) => { e.stopPropagation(); handleRestoreGroup(group.id) }}
+                            disabled={restoringGroupId === group.id}
+                          >
+                            {restoringGroupId === group.id ? 'Restoring…' : 'Restore'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <div className="groups-main">
-          {!selectedGroup ? (
+        <div className="groups-main" style={chatViewElement ? { padding: 0, overflow: 'hidden' } : undefined}>
+          {chatViewElement ? (
+            chatViewElement
+          ) : !selectedGroup ? (
             <div className="groups-main-empty">
               <Users size={48} />
               <p>Select a group to view its emails</p>
@@ -847,35 +1286,49 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
               <div className="group-detail-header">
                 <div className="group-detail-title">
                   {selectedGroup.photoUrl ? (
-                    <img className="group-avatar-small group-avatar-photo" src={`http://localhost:5050${selectedGroup.photoUrl}`} alt="" />
+                    <img className="group-avatar-small group-avatar-photo" src={`${selectedGroup.photoUrl}`} alt="" />
                   ) : (
                     <div className="group-avatar-small" style={{ backgroundColor: selectedGroup.color }}>
                       {selectedGroup.name.charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div className="group-detail-title-text">
-                    <h2>{selectedGroup.name}</h2>
+                    <h2>
+                      {selectedGroup.name}
+                      {canManage && (
+                        <button className="group-name-edit-btn" onClick={() => handleOpenEditModal(selectedGroup)} title="Edit group">
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </h2>
                     <span className="group-detail-member-count">
                       {members.length} member{members.length !== 1 ? 's' : ''}
                     </span>
                   </div>
                   {selectedGroup.isMemberOf && (
-                    <span className="group-member-badge group-member-badge-inline">Member</span>
+                    <span className="group-member-badge group-member-badge-inline">{selectedGroup.isCoOwner ? 'Co-owner' : 'Member'}</span>
                   )}
                 </div>
                 <div className="group-detail-header-actions">
                   <button className="group-header-action" onClick={handleComposeToGroup} title="Send email to group">
-                    <span className="group-header-icon-btn"><Send size={17} /></span>
+                    <span className="group-header-icon-btn"><Send size={22} /></span>
                     <span className="group-header-action-label">Send</span>
+                    <span className="group-header-action-label">Email</span>
                   </button>
-                  {!selectedGroup.isMemberOf && (
+                  {canManage && (
                     <>
                       <button
                         className="group-header-action"
                         onClick={() => { setActiveTab('events'); handleOpenEventModal() }}
                         title="Create event"
                       >
-                        <span className="group-header-icon-btn"><CalendarPlus size={17} /></span>
+                        <span className="group-header-icon-btn calendar-plus-wrapper">
+                          <Calendar size={32} className="calendar-plus-icon" />
+                          <span className="calendar-plus-badge">
+                            <PlusBadge size={16} />
+                          </span>
+                        </span>
+                        <span className="group-header-action-label">Add</span>
                         <span className="group-header-action-label">Event</span>
                       </button>
                       <button
@@ -883,24 +1336,29 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                         onClick={() => { setActiveTab('members'); requestAnimationFrame(() => addMemberInputRef.current?.focus()) }}
                         title="Add members"
                       >
-                        <span className="group-header-icon-btn"><UserPlus size={17} /></span>
+                        <span className="group-header-icon-btn"><GroupsPlusIcon size={46} hideLeft color="#64b5f6" middleColor="black" sideStrokeWidth={2.2} badgeColor="#1976d2" /></span>
                         <span className="group-header-action-label">Add</span>
-                      </button>
-                      <button className="group-header-action" onClick={() => handleOpenEditModal(selectedGroup)} title="Edit group">
-                        <span className="group-header-icon-btn"><Pencil size={17} /></span>
-                        <span className="group-header-action-label">Edit</span>
-                      </button>
-                      <button className="group-header-action" onClick={() => handleOpenEditModal(selectedGroup)} title="Group settings">
-                        <span className="group-header-icon-btn"><Settings size={17} /></span>
-                        <span className="group-header-action-label">Settings</span>
+                        <span className="group-header-action-label">Member</span>
                       </button>
                     </>
                   )}
-                  {selectedGroup.isMemberOf && (
-                    <button className="group-header-action" onClick={() => handleLeaveGroup(selectedGroup)} title="Leave group">
-                      <span className="group-header-icon-btn"><LogOut size={17} /></span>
-                      <span className="group-header-action-label">Leave</span>
-                    </button>
+                  <button className="group-header-action" onClick={() => setConfirmLeaveGroup(selectedGroup)} title="Leave group">
+                    <span className="group-header-icon-btn"><GroupsPlusIcon size={46} badge="arrow" color="#ff6b6b" middleColor="black" sideStrokeWidth={2.2} /></span>
+                    <span className="group-header-action-label">Leave</span>
+                    <span className="group-header-action-label">Group</span>
+                  </button>
+                  {canManage && (
+                    <>
+                      <button className="group-header-action" onClick={() => handleOpenEditModal(selectedGroup)} title="Edit group">
+                        <span className="group-header-icon-btn"><GroupsPlusIcon size={46} badge="pencil" color="#ba68c8" middleColor="black" sideStrokeWidth={2.2} badgeColor="#8e24aa" /></span>
+                        <span className="group-header-action-label">Edit</span>
+                        <span className="group-header-action-label">Group</span>
+                      </button>
+                      <button className="group-header-action" onClick={() => handleOpenEditModal(selectedGroup)} title="Group settings">
+                        <span className="group-header-icon-btn"><Settings size={22} /></span>
+                        <span className="group-header-action-label">Settings</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -912,13 +1370,13 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
 
               <div className="group-tabs">
                 <button className={`group-tab ${activeTab === 'emails' ? 'active' : ''}`} onClick={() => setActiveTab('emails')}>
-                  Emails ({groupEmails.length})
+                  <Mail size={16} /> Emails ({groupEmails.length})
                 </button>
                 <button className={`group-tab ${activeTab === 'events' ? 'active' : ''}`} onClick={() => setActiveTab('events')}>
-                  Events ({groupEvents.length})
+                  <Calendar size={16} /> Events ({groupEvents.length})
                 </button>
                 <button className={`group-tab ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>
-                  Members ({members.length})
+                  <Users size={16} /> Members ({members.length})
                 </button>
               </div>
 
@@ -933,12 +1391,22 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                         <span className="member-role-col">Role</span>
                         <span className="member-action-col" />
                       </div>
-                      {members.map(member => {
+                      {(() => {
+                        // Owner first, then co-owners, then plain members.
+                        const ownerEmailForSort = (selectedGroup.isMemberOf ? selectedGroup.ownerEmail || '' : ownEmail || '').toLowerCase()
+                        const roleRank = (email: string) => {
+                          if (email.toLowerCase() === ownerEmailForSort) return 0
+                          return memberRoles[email.toLowerCase()] === 'co-owner' ? 1 : 2
+                        }
+                        return [...members].sort((a, b) => roleRank(a) - roleRank(b))
+                      })().map(member => {
                         const isSelf = !!ownEmail && member.toLowerCase() === ownEmail.toLowerCase()
                         const isRowOwner = selectedGroup.isMemberOf
                           ? member.toLowerCase() === (selectedGroup.ownerEmail || '').toLowerCase()
                           : isSelf
-                        const canRemove = !isSelf && !selectedGroup.isMemberOf
+                        const isRowCoOwner = !isRowOwner && memberRoles[member.toLowerCase()] === 'co-owner'
+                        const canRemove = !isSelf && !isRowOwner && canManage
+                        const canTogglePromotion = !isSelf && !isRowOwner && canManage
                         const [namePart, domainPart] = member.split('@')
                         return (
                           <div key={member} className="member-row">
@@ -952,8 +1420,18 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                               </span>
                               {isSelf && <span className="member-self-tag"> (you)</span>}
                             </span>
-                            <span className="member-role-col">{isRowOwner ? 'Owner' : 'Member'}</span>
+                            <span className="member-role-col">{isRowOwner ? 'Owner' : isRowCoOwner ? 'Co-owner' : 'Member'}</span>
                             <span className="member-action-col">
+                              {canTogglePromotion && (
+                                <button
+                                  className="remove-member-btn"
+                                  onClick={() => handleSetMemberRole(member, isRowCoOwner ? 'member' : 'co-owner')}
+                                  disabled={roleUpdatingEmail === member}
+                                  title={isRowCoOwner ? 'Remove as co-owner' : 'Make co-owner'}
+                                >
+                                  {isRowCoOwner ? <ShieldOff size={16} /> : <Shield size={16} />}
+                                </button>
+                              )}
                               {canRemove && (
                                 <button
                                   className="remove-member-btn"
@@ -970,7 +1448,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                     </div>
                   )}
 
-                  {!selectedGroup.isMemberOf && (
+                  {canManage && (
                     <div className="add-member-row">
                       <input
                         ref={addMemberInputRef}
@@ -990,11 +1468,16 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
 
               {activeTab === 'events' && (
                 <div className="group-events-section">
-                  {!selectedGroup.isMemberOf && (
+                  {canManage && (
                     <div className="section-header-row">
-                      <button className="btn-secondary" onClick={handleOpenEventModal}>
-                        <Plus size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                        New event
+                      <button className="group-header-action" onClick={handleOpenEventModal} title="New event">
+                        <span className="group-header-icon-btn calendar-plus-wrapper">
+                          <Calendar size={32} className="calendar-plus-icon" />
+                          <span className="calendar-plus-badge">
+                            <PlusBadge size={16} />
+                          </span>
+                        </span>
+                        <span className="group-header-action-label">New event</span>
                       </button>
                     </div>
                   )}
@@ -1024,7 +1507,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                             )}
                             {event.description && <div className="event-description" dangerouslySetInnerHTML={{ __html: event.description }} />}
                           </div>
-                          {!selectedGroup.isMemberOf && (
+                          {canManage && (
                             <button
                               className="delete-group-btn"
                               onClick={() => handleDeleteEvent(event.id)}
@@ -1060,7 +1543,7 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                   <div className="group-email-list-wrap">
                     <AllMailsPage
                       token={token}
-                      onViewEmail={onViewEmail}
+                      onViewEmail={(email) => onViewEmail({ ...email, groupEmail: selectedGroup.groupEmail })}
                       onReply={onReply}
                       onRefreshCounts={onRefreshCounts}
                       type="group"
@@ -1076,9 +1559,9 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
       </div>
 
       {groupModalMode && (
-        <div className="create-group-modal-overlay" onClick={handleCloseGroupModal}>
+        <div className="create-group-modal-overlay" onClick={handleDiscardClick}>
           <div className="edit-group-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="edit-group-modal-close" onClick={handleCloseGroupModal} title="Close">
+            <button className="edit-group-modal-close" onClick={handleDiscardClick} title="Close">
               <X size={20} />
             </button>
             <div className="edit-group-modal-body">
@@ -1086,100 +1569,103 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                 <h2>{groupModalMode === 'edit' ? 'Edit group' : 'Create group'}</h2>
                 <p>You can add a group photo or change the group name or description.</p>
                 <div className="edit-group-illustration">
-                  <Users size={120} strokeWidth={1} />
+                  <GroupsIcon size={120} />
                 </div>
               </div>
               <div className="edit-group-modal-right">
                 <div className="edit-group-modal-form-scroll">
                 <div className="edit-group-modal-form">
                   <div className="edit-group-photo-row">
-                    <div className="edit-group-photo-wrapper">
-                      {newGroupPhotoUrl ? (
-                        <img className="edit-group-photo" src={`http://localhost:5050${newGroupPhotoUrl}`} alt="" />
-                      ) : (
-                        <div className="edit-group-photo edit-group-photo-placeholder" style={{ backgroundColor: newGroupColor }}>
-                          <User size={48} color="white" strokeWidth={1.5} />
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        className="edit-group-photo-btn"
-                        onClick={() => photoInputRef.current?.click()}
-                        disabled={photoUploading}
-                        title="Add group photo"
-                      >
-                        <Camera size={16} />
-                      </button>
-                      <input
-                        ref={photoInputRef}
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handlePhotoUpload(file)
-                          e.target.value = ''
-                        }}
-                      />
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>Group name</label>
-                      <input
-                        type="text"
-                        value={newGroupName}
-                        onChange={(e) => handleGroupNameChange(e.target.value)}
-                        placeholder="e.g., Team Alpha, Family"
-                        maxLength={100}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Color</label>
-                    <div className="color-picker-row">
-                      {colors.map(color => (
+                    <div className="edit-group-photo-column">
+                      <div className="edit-group-photo-wrapper">
+                        {newGroupPhotoUrl ? (
+                          <img className="edit-group-photo" src={`${newGroupPhotoUrl}`} alt="" />
+                        ) : (
+                          <div className="edit-group-photo edit-group-photo-placeholder" style={{ backgroundColor: newGroupColor }}>
+                            <User size={48} color="white" strokeWidth={1.5} />
+                          </div>
+                        )}
                         <button
-                          key={color}
-                          className={`color-swatch ${newGroupColor === color ? 'selected' : ''}`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setNewGroupColor(color)}
+                          type="button"
+                          className="edit-group-photo-btn"
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={photoUploading}
+                          title="Add group photo"
+                        >
+                          <Camera size={16} />
+                        </button>
+                        <input
+                          ref={photoInputRef}
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handlePhotoUpload(file)
+                            e.target.value = ''
+                          }}
                         />
-                      ))}
+                      </div>
+                      <div className="form-group">
+                        <label>Color</label>
+                        <div className="color-picker-row">
+                          {colors.map(color => (
+                            <button
+                              key={color}
+                              className={`color-swatch ${newGroupColor === color ? 'selected' : ''}`}
+                              style={{ backgroundColor: color }}
+                              onClick={() => setNewGroupColor(color)}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                    <div className="edit-group-fields-column">
+                      <div className="form-group">
+                        <label>Group name</label>
+                        <input
+                          type="text"
+                          value={newGroupName}
+                          onChange={(e) => handleGroupNameChange(e.target.value)}
+                          placeholder="e.g., Team Alpha, Family"
+                          maxLength={100}
+                          autoFocus
+                        />
+                      </div>
 
-                  <div className="form-group">
-                    <label>Group email address</label>
-                    <div className={`group-email-edit-row ${emailAvailability === 'taken' ? 'has-error' : ''}`}>
-                      <input
-                        type="text"
-                        className="group-email-local-input"
-                        value={newGroupEmailLocal}
-                        onChange={(e) => handleGroupEmailLocalChange(e.target.value)}
-                        maxLength={50}
-                      />
-                      <span className="group-email-domain">@groups.local</span>
-                      <span className="group-email-status">
-                        {emailAvailability === 'checking' && <Loader2 size={15} className="spin" style={{ color: '#999' }} />}
-                        {emailAvailability === 'available' && <Check size={16} style={{ color: '#2e7d32' }} />}
-                        {emailAvailability === 'taken' && <AlertCircle size={16} style={{ color: '#d32f2f' }} />}
-                      </span>
+                      <div className="form-group">
+                        <label>Group email address</label>
+                        <div className={`group-email-edit-row ${emailAvailability === 'taken' ? 'has-error' : ''}`}>
+                          <input
+                            type="text"
+                            className="group-email-local-input"
+                            value={newGroupEmailLocal}
+                            onChange={(e) => handleGroupEmailLocalChange(e.target.value)}
+                            maxLength={50}
+                          />
+                          <span className="group-email-domain">@groups.local</span>
+                          <span className="group-email-status">
+                            {emailAvailability === 'checking' && <Loader2 size={15} className="spin" style={{ color: '#999' }} />}
+                            {emailAvailability === 'available' && <Check size={16} style={{ color: '#2e7d32' }} />}
+                            {emailAvailability === 'taken' && <AlertCircle size={16} style={{ color: '#d32f2f' }} />}
+                          </span>
+                        </div>
+                        {emailAvailability === 'taken' && <p className="group-email-hint error">This email address is already taken</p>}
+                        {emailAvailability === 'available' && <p className="group-email-hint success">This email address is available</p>}
+                        {emailAvailability === 'invalid' && <p className="group-email-hint">Must be at least 3 characters</p>}
+                      </div>
+
+                      <div className="form-group">
+                        <label>Description</label>
+                        <textarea
+                          className="edit-group-description-input"
+                          value={newGroupDescription}
+                          onChange={(e) => setNewGroupDescription(e.target.value)}
+                          placeholder="Optional"
+                          rows={4}
+                        />
+                      </div>
                     </div>
-                    {emailAvailability === 'taken' && <p className="group-email-hint error">This email address is already taken</p>}
-                    {emailAvailability === 'available' && <p className="group-email-hint success">This email address is available</p>}
-                    {emailAvailability === 'invalid' && <p className="group-email-hint">Must be at least 3 characters</p>}
-                  </div>
-
-                  <div className="form-group">
-                    <label>Description</label>
-                    <textarea
-                      className="edit-group-description-input"
-                      value={newGroupDescription}
-                      onChange={(e) => setNewGroupDescription(e.target.value)}
-                      placeholder="Optional"
-                      rows={4}
-                    />
                   </div>
                 </div>
                 </div>
@@ -1188,14 +1674,33 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
                   <button className="btn-primary" onClick={groupModalMode === 'edit' ? handleUpdateGroup : handleCreateGroup} disabled={loading || emailAvailability === 'taken'}>
                     Save
                   </button>
-                  <button className="btn-secondary" onClick={handleCloseGroupModal}>Discard</button>
-                  {groupModalMode === 'edit' && editGroupId && (
-                    <button className="delete-group-link" onClick={() => handleDeleteGroup(editGroupId)}>
+                  <button className="btn-secondary" onClick={handleDiscardClick}>Discard</button>
+                  {groupModalMode === 'edit' && editGroupId && !selectedGroup?.isMemberOf && (
+                    <button className="delete-group-link" onClick={() => setConfirmDeleteGroupId(editGroupId)}>
                       <Trash2 size={16} />
                       Delete group
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDiscardGroupEdit && (
+        <div className="create-group-modal-overlay" onClick={() => setConfirmDiscardGroupEdit(false)}>
+          <div className="create-group-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="groups-header">
+              <h2>Discard changes?</h2>
+            </div>
+            <div className="create-group-form">
+              <p>You have unsaved changes to this group. If you discard now, they'll be lost.</p>
+              <div className="form-actions">
+                <button className="btn-secondary" onClick={() => setConfirmDiscardGroupEdit(false)}>Keep editing</button>
+                <button className="btn-primary" style={{ backgroundColor: '#d32f2f' }} onClick={handleCloseGroupModal}>
+                  Discard changes
+                </button>
               </div>
             </div>
           </div>
@@ -1542,6 +2047,67 @@ export default function GroupsPage({ token, onViewEmail, onReply, onRefreshCount
           </div>
         </div>
       )}
+
+      {confirmLeaveGroup && (
+        <div className="create-group-modal-overlay" onClick={() => setConfirmLeaveGroup(null)}>
+          <div className="create-group-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="groups-header">
+              <h2>Leave group</h2>
+            </div>
+            <div className="create-group-form">
+              <p>Leave "{confirmLeaveGroup.name}"? You'll stop seeing this group and its emails.</p>
+              <div className="form-actions">
+                <button className="btn-secondary" onClick={() => setConfirmLeaveGroup(null)}>Cancel</button>
+                <button className="btn-primary" style={{ backgroundColor: '#d32f2f' }} onClick={() => handleLeaveGroup(confirmLeaveGroup)} disabled={loading}>
+                  Leave
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteGroupId !== null && (() => {
+        const groupToDelete = groups.find(g => g.id === confirmDeleteGroupId) || selectedGroup
+        if (!groupToDelete) return null
+        return (
+          <div className="create-group-modal-overlay" onClick={() => setConfirmDeleteGroupId(null)}>
+            <div className="create-group-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="groups-header">
+                <h2>Delete group</h2>
+              </div>
+              <div className="create-group-form">
+                <p>
+                  Are you sure you want to delete <strong>"{groupToDelete.name}"</strong>? Before you continue, here's what will happen:
+                </p>
+                <ul style={{ margin: '12px 0', paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px', color: '#444', fontSize: '14px' }}>
+                  <li>All members will immediately lose access to this group, including its conversations, files, and calendar events.</li>
+                  <li>The group's email address ({groupToDelete.groupEmail}) will stop working while deleted.</li>
+                </ul>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '14px', color: '#333', cursor: 'pointer', margin: '8px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={deleteUnderstoodChecked}
+                    onChange={(e) => setDeleteUnderstoodChecked(e.target.checked)}
+                    style={{ marginTop: '2px', cursor: 'pointer' }}
+                  />
+                  <span>I understand members will lose access to this group right away.</span>
+                </label>
+                <p style={{ fontSize: '13px', color: '#666', backgroundColor: '#f5f5f5', borderRadius: '4px', padding: '10px 12px', margin: '0 0 8px 0' }}>
+                  Deleted groups can be restored within <strong>30 days</strong> from Recently deleted groups. After that, they'll be permanently deleted.
+                </p>
+                <div className="form-actions">
+                  <button className="btn-secondary" onClick={() => setConfirmDeleteGroupId(null)}>Cancel</button>
+                  <button className="btn-primary" style={{ backgroundColor: '#d32f2f' }} onClick={() => handleDeleteGroup(groupToDelete.id)} disabled={loading || !deleteUnderstoodChecked}>
+                    Delete group
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
     </div>
   )
 }

@@ -8,7 +8,9 @@
     "server:dev": "nodemon --watch server --ext ts --exec ts-node --project server/tsconfig.json server/index.ts",
     "server:start": "ts-node --project server/tsconfig.json server/index.ts",
     "server:build": "tsc --project server/tsconfig.json",
-    "server:serve": "node server/dist/index.js"
+    "server:serve": "node server/dist/index.js",
+    "build": "npm install --prefix client && cd client && npm run build && cd .. && npm run server:build",
+    "start": "npm run server:serve"
   },
   "keywords": [],
   "author": "",

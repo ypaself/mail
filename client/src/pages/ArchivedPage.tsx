@@ -67,7 +67,7 @@ export default function ArchivedPage({ token, onViewEmail }: ArchivedPageProps) 
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/archived', {
+      const response = await fetch(`/api/archived`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -91,7 +91,7 @@ export default function ArchivedPage({ token, onViewEmail }: ArchivedPageProps) 
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -112,7 +112,7 @@ export default function ArchivedPage({ token, onViewEmail }: ArchivedPageProps) 
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/archive`, {
+      const response = await fetch(`/api/emails/${emailId}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

@@ -135,7 +135,7 @@ export default function AiFloatingButton({ token }: Props) {
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setLoading(true)
     try {
-      const res = await fetch('http://localhost:5050/api/ai/chat', {
+      const res = await fetch(`/api/ai/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

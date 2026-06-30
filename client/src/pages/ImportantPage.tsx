@@ -67,7 +67,7 @@ export default function ImportantPage({ token, onViewEmail }: ImportantPageProps
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/important', {
+      const response = await fetch(`/api/important`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -91,7 +91,7 @@ export default function ImportantPage({ token, onViewEmail }: ImportantPageProps
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -112,7 +112,7 @@ export default function ImportantPage({ token, onViewEmail }: ImportantPageProps
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/important`, {
+      const response = await fetch(`/api/emails/${emailId}/important`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

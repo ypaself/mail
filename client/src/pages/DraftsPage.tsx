@@ -66,7 +66,7 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/drafts', {
+      const response = await fetch(`/api/drafts`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -90,7 +90,7 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -111,7 +111,7 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/send`, {
+      const response = await fetch(`/api/emails/${emailId}/send`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -133,7 +133,7 @@ export default function DraftsPage({ token, onViewEmail, onSendDraft }: DraftsPa
     if (!confirm('Are you sure you want to delete this draft?')) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/draft`, {
+      const response = await fetch(`/api/emails/${emailId}/draft`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })

@@ -88,7 +88,7 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
     setError('')
     try {
       // Fetch inbox emails (received)
-      const inboxResponse = await fetch('http://localhost:5050/api/inbox', {
+      const inboxResponse = await fetch(`/api/inbox`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -186,7 +186,7 @@ export default function InboxPage({ token, onViewEmail, searchQuery = '', search
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

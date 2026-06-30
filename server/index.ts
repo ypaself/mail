@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import { execFile } from 'child_process';
 
 // Type definitions
 interface AuthTokenPayload extends JwtPayload {
@@ -142,7 +143,10 @@ app.post('/api/attachments/upload', upload.single('file'), (req: Request, res: R
 // PostgreSQL connection
 const pool = new Pool(
   process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+      }
     : {
         user: process.env.DB_USER ?? 'postgres',
         password: process.env.DB_PASSWORD ?? '9493',
@@ -286,11 +290,25 @@ async function runMigrations() {
       SELECT column_name FROM information_schema.columns WHERE table_name = 'groups'
     `);
     const existingGroupsColumns = new Set(groupsColumnsResult.rows.map(row => row.column_name));
-    for (const column of [{ name: 'description', type: 'TEXT' }, { name: 'photo_url', type: 'VARCHAR(500)' }, { name: 'email_local', type: 'VARCHAR(50) UNIQUE' }]) {
+    for (const column of [{ name: 'description', type: 'TEXT' }, { name: 'photo_url', type: 'VARCHAR(500)' }, { name: 'email_local', type: 'VARCHAR(50) UNIQUE' }, { name: 'deleted_at', type: 'TIMESTAMP' }]) {
       if (!existingGroupsColumns.has(column.name)) {
         await pool.query(`ALTER TABLE groups ADD COLUMN ${column.name} ${column.type}`);
         console.log(`✓ Added groups.${column.name}`);
       }
+    }
+
+    // Permanently purge groups that have been soft-deleted for over 30 days — run once at
+    // startup rather than a cron job, since this app has no background scheduler.
+    await pool.query(`DELETE FROM groups WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'`);
+
+    // group_members table may already exist from before the co-owner role was added
+    const memberColumnsResult = await pool.query(`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'group_members'
+    `);
+    const existingMemberColumns = new Set(memberColumnsResult.rows.map(row => row.column_name));
+    if (!existingMemberColumns.has('role')) {
+      await pool.query(`ALTER TABLE group_members ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'member'`);
+      console.log('✓ Added group_members.role');
     }
 
     // group_events table may already exist from before end_date/is_online were added
@@ -340,6 +358,34 @@ function authenticateToken(req: Request, res: Response, next: NextFunction): voi
     next();
   });
 }
+
+// Read-only commit history for the project's own git repo, shown in the Files page's
+// Git History tab. Uses execFile (no shell) with a fixed argument list — no request
+// input is interpolated into the command, so there's no injection surface.
+const REPO_ROOT = path.join(__dirname, '..');
+const GIT_LOG_FORMAT = '%H%x1f%h%x1f%an%x1f%ad%x1f%s';
+app.get('/api/git/log', authenticateToken, (req: Request, res: Response): void => {
+  const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
+  execFile(
+    'git',
+    ['log', `-n${limit}`, `--pretty=format:${GIT_LOG_FORMAT}`, '--date=iso-strict'],
+    { cwd: REPO_ROOT, maxBuffer: 10 * 1024 * 1024 },
+    (err, stdout) => {
+      if (err) {
+        res.status(500).json({ error: 'Failed to read git log', details: getErrorMessage(err) });
+        return;
+      }
+      const commits = stdout
+        .split('\n')
+        .filter(Boolean)
+        .map(line => {
+          const [hash, shortHash, author, date, message] = line.split('\x1f');
+          return { hash, shortHash, author, date, message };
+        });
+      res.json({ commits });
+    }
+  );
+});
 
 // User registration
 app.post('/api/register', async (req: Request<{}, {}, RegisterBody>, res: Response): Promise<void> => {
@@ -1331,29 +1377,68 @@ function normalizeEmailLocal(value: string): string {
 
 // Viewing a group's members/events/emails is allowed for its owner or for any of its
 // members (so a member sees the same group data the owner does, like Outlook/Google Groups).
-async function getGroupViewAccess(groupId: string | string[], userId: number, userEmail: string): Promise<{ found: boolean; allowed: boolean; isOwner: boolean }> {
-  const groupResult = await pool.query<{ user_id: number }>('SELECT user_id FROM groups WHERE id = $1', [groupId]);
-  if (groupResult.rows.length === 0) return { found: false, allowed: false, isOwner: false };
+async function getGroupViewAccess(groupId: string | string[], userId: number, userEmail: string): Promise<{ found: boolean; allowed: boolean; isOwner: boolean; isCoOwner: boolean }> {
+  const groupResult = await pool.query<{ user_id: number; deleted_at: Date | null }>('SELECT user_id, deleted_at FROM groups WHERE id = $1', [groupId]);
+  if (groupResult.rows.length === 0) return { found: false, allowed: false, isOwner: false, isCoOwner: false };
   const isOwner = groupResult.rows[0].user_id === userId;
-  if (isOwner) return { found: true, allowed: true, isOwner: true };
-  const memberResult = await pool.query(
-    'SELECT 1 FROM group_members WHERE group_id = $1 AND email = $2',
+  // A soft-deleted group stays visible only to its owner (so they can restore it) —
+  // members lose access immediately, same as the delete-confirmation copy promises.
+  if (groupResult.rows[0].deleted_at && !isOwner) return { found: true, allowed: false, isOwner: false, isCoOwner: false };
+  if (isOwner) return { found: true, allowed: true, isOwner: true, isCoOwner: false };
+  const memberResult = await pool.query<{ role: string }>(
+    'SELECT role FROM group_members WHERE group_id = $1 AND email = $2',
     [groupId, userEmail]
   );
-  return { found: true, allowed: memberResult.rows.length > 0, isOwner: false };
+  return { found: true, allowed: memberResult.rows.length > 0, isOwner: false, isCoOwner: memberResult.rows[0]?.role === 'co-owner' }
+}
+
+// A co-owner gets every owner privilege except deleting the group — used to gate edit,
+// add/remove member, and create/delete event endpoints to "owner or co-owner".
+async function getGroupEditAccess(groupId: string | string[], userId: number, userEmail: string): Promise<{ found: boolean; allowed: boolean; isOwner: boolean }> {
+  const access = await getGroupViewAccess(groupId, userId, userEmail)
+  return { found: access.found, allowed: access.isOwner || access.isCoOwner, isOwner: access.isOwner }
 }
 
 // Get all groups for the user
 app.get('/api/groups', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await pool.query<{ id: number; name: string; color: string; description: string | null; photo_url: string | null; email_local: string | null; member_count: string }>(
-      `SELECT g.id, g.name, g.color, g.description, g.photo_url, g.email_local, COUNT(gm.id)::varchar as member_count
+    const result = await pool.query<{
+      id: number;
+      name: string;
+      color: string;
+      description: string | null;
+      photo_url: string | null;
+      email_local: string | null;
+      member_count: string;
+      total_email_count: string;
+      unread_email_count: string;
+      schedule_email_count: string;
+    }>(
+      `SELECT g.id, g.name, g.color, g.description, g.photo_url, g.email_local, COUNT(gm.id)::varchar as member_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false
+                  AND (e.recipient = $2 OR (e.sender = $2 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $2
+                  )))
+              ) as total_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_read = false AND e.is_draft = false AND e.is_scheduled = false AND e.sender != $2 AND e.recipient = $2
+              ) as unread_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_scheduled = true
+                  AND (e.recipient = $2 OR (e.sender = $2 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $2
+                  )))
+              ) as schedule_email_count
        FROM groups g
        LEFT JOIN group_members gm ON gm.group_id = g.id
-       WHERE g.user_id = $1
+       WHERE g.user_id = $1 AND g.deleted_at IS NULL
        GROUP BY g.id
        ORDER BY g.created_at DESC`,
-      [req.user!.id]
+      [req.user!.id, req.user!.email]
     );
     const groups = result.rows.map(row => ({
       id: row.id,
@@ -1363,7 +1448,10 @@ app.get('/api/groups', authenticateToken, async (req: Request, res: Response): P
       photoUrl: row.photo_url,
       emailLocal: row.email_local,
       groupEmail: buildGroupEmail(row.name, row.id, row.email_local),
-      memberCount: parseInt(row.member_count, 10)
+      memberCount: parseInt(row.member_count, 10),
+      totalEmailCount: parseInt(row.total_email_count || '0', 10),
+      unreadEmailCount: parseInt(row.unread_email_count || '0', 10),
+      scheduleEmailCount: parseInt(row.schedule_email_count || '0', 10),
     }));
     res.json({ groups });
   } catch (err) {
@@ -1375,14 +1463,45 @@ app.get('/api/groups', authenticateToken, async (req: Request, res: Response): P
 // how an Outlook/Google Group shows up in a member's own client, not just the owner's.
 app.get('/api/groups/member-of', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await pool.query<{ id: number; name: string; color: string; description: string | null; photo_url: string | null; email_local: string | null; owner_email: string; member_count: string }>(
-      `SELECT g.id, g.name, g.color, g.description, g.photo_url, g.email_local, u.email as owner_email, COUNT(gm2.id)::varchar as member_count
+    const result = await pool.query<{
+      id: number;
+      name: string;
+      color: string;
+      description: string | null;
+      photo_url: string | null;
+      email_local: string | null;
+      owner_email: string;
+      member_count: string;
+      role: string;
+      total_email_count: string;
+      unread_email_count: string;
+      schedule_email_count: string;
+    }>(
+      `SELECT g.id, g.name, g.color, g.description, g.photo_url, g.email_local, u.email as owner_email, gm.role, COUNT(gm2.id)::varchar as member_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false
+                  AND (e.recipient = $1 OR (e.sender = $1 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $1
+                  )))
+              ) as total_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_read = false AND e.is_draft = false AND e.is_scheduled = false AND e.sender != $1 AND e.recipient = $1
+              ) as unread_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_scheduled = true
+                  AND (e.recipient = $1 OR (e.sender = $1 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $1
+                  )))
+              ) as schedule_email_count
        FROM groups g
        JOIN group_members gm ON gm.group_id = g.id AND gm.email = $1
        JOIN users u ON u.id = g.user_id
        LEFT JOIN group_members gm2 ON gm2.group_id = g.id
-       WHERE g.user_id != $2
-       GROUP BY g.id, u.email
+       WHERE g.user_id != $2 AND g.deleted_at IS NULL
+       GROUP BY g.id, u.email, gm.role
        ORDER BY g.created_at DESC`,
       [req.user!.email, req.user!.id]
     );
@@ -1395,7 +1514,11 @@ app.get('/api/groups/member-of', authenticateToken, async (req: Request, res: Re
       emailLocal: row.email_local,
       groupEmail: buildGroupEmail(row.name, row.id, row.email_local),
       ownerEmail: row.owner_email,
-      memberCount: parseInt(row.member_count, 10)
+      memberCount: parseInt(row.member_count, 10),
+      isCoOwner: row.role === 'co-owner',
+      totalEmailCount: parseInt(row.total_email_count || '0', 10),
+      unreadEmailCount: parseInt(row.unread_email_count || '0', 10),
+      scheduleEmailCount: parseInt(row.schedule_email_count || '0', 10),
     }));
     res.json({ groups });
   } catch (err) {
@@ -1506,15 +1629,12 @@ app.patch('/api/groups/:id', authenticateToken, async (req: Request, res: Respon
     return;
   }
   try {
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    if (groupResult.rows[0].user_id !== req.user!.id) {
+    if (!access.allowed) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -1572,10 +1692,101 @@ app.delete('/api/groups/:id', authenticateToken, async (req: Request, res: Respo
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
-    await pool.query('DELETE FROM groups WHERE id = $1', [id]);
+    // Soft delete — keep the row (and its members/events/emails) so the owner can
+    // restore it within 30 days; a startup job purges anything older than that.
+    await pool.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     res.json({ message: 'Group deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete group', details: getErrorMessage(err) });
+  }
+});
+
+// Groups the owner soft-deleted within the last 30 days — still restorable.
+app.get('/api/groups/deleted', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query<{
+      id: number;
+      name: string;
+      color: string;
+      description: string | null;
+      photo_url: string | null;
+      email_local: string | null;
+      member_count: string;
+      deleted_at: Date;
+      total_email_count: string;
+      unread_email_count: string;
+      schedule_email_count: string;
+    }>(
+      `SELECT g.id, g.name, g.color, g.description, g.photo_url, g.email_local, g.deleted_at, COUNT(gm.id)::varchar as member_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false
+                  AND (e.recipient = $2 OR (e.sender = $2 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $2
+                  )))
+              ) as total_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_read = false AND e.is_draft = false AND e.is_scheduled = false AND e.sender != $2 AND e.recipient = $2
+              ) as unread_email_count,
+              (
+                SELECT COUNT(DISTINCT e.id)::varchar FROM emails e
+                WHERE e.group_id = g.id AND e.is_deleted = false AND e.is_scheduled = true
+                  AND (e.recipient = $2 OR (e.sender = $2 AND NOT EXISTS (
+                    SELECT 1 FROM group_members gm2 WHERE gm2.group_id = g.id AND gm2.email = e.recipient AND gm2.email != $2
+                  )))
+              ) as schedule_email_count
+       FROM groups g
+       LEFT JOIN group_members gm ON gm.group_id = g.id
+       WHERE g.user_id = $1 AND g.deleted_at IS NOT NULL AND g.deleted_at > NOW() - INTERVAL '30 days'
+       GROUP BY g.id
+       ORDER BY g.deleted_at DESC`,
+      [req.user!.id, req.user!.email]
+    );
+    const groups = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      description: row.description,
+      photoUrl: row.photo_url,
+      emailLocal: row.email_local,
+      groupEmail: buildGroupEmail(row.name, row.id, row.email_local),
+      memberCount: parseInt(row.member_count, 10),
+      deletedAt: row.deleted_at,
+      totalEmailCount: parseInt(row.total_email_count || '0', 10),
+      unreadEmailCount: parseInt(row.unread_email_count || '0', 10),
+      scheduleEmailCount: parseInt(row.schedule_email_count || '0', 10),
+    }));
+    res.json({ groups });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch deleted groups', details: getErrorMessage(err) });
+  }
+});
+
+// Restore a group soft-deleted within the last 30 days.
+app.post('/api/groups/:id/restore', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  try {
+    const groupResult = await pool.query<{ user_id: number; deleted_at: Date | null }>(
+      'SELECT user_id, deleted_at FROM groups WHERE id = $1',
+      [id]
+    );
+    if (groupResult.rows.length === 0) {
+      res.status(404).json({ error: 'Group not found' });
+      return;
+    }
+    if (groupResult.rows[0].user_id !== req.user!.id) {
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+    if (!groupResult.rows[0].deleted_at) {
+      res.status(400).json({ error: 'Group is not deleted' });
+      return;
+    }
+    await pool.query('UPDATE groups SET deleted_at = NULL WHERE id = $1', [id]);
+    res.json({ message: 'Group restored' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to restore group', details: getErrorMessage(err) });
   }
 });
 
@@ -1592,17 +1803,17 @@ app.get('/api/groups/:id/members', authenticateToken, async (req: Request, res: 
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
-    const result = await pool.query<{ email: string }>(
-      'SELECT email FROM group_members WHERE group_id = $1 ORDER BY added_at ASC',
+    const result = await pool.query<{ email: string; role: string }>(
+      'SELECT email, role FROM group_members WHERE group_id = $1 ORDER BY added_at ASC',
       [id]
     );
-    res.json({ members: result.rows.map(row => row.email) });
+    res.json({ members: result.rows.map(row => ({ email: row.email, role: row.role })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch members', details: getErrorMessage(err) });
   }
 });
 
-// Add a member to a group
+// Add a member to a group — owner or co-owner.
 app.post('/api/groups/:id/members', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   const { email } = req.body;
@@ -1611,16 +1822,12 @@ app.post('/api/groups/:id/members', authenticateToken, async (req: Request, res:
     return;
   }
   try {
-    // Verify group ownership
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    if (groupResult.rows[0].user_id !== req.user!.id) {
+    if (!access.allowed) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -1634,23 +1841,19 @@ app.post('/api/groups/:id/members', authenticateToken, async (req: Request, res:
   }
 });
 
-// Remove a member from a group — the owner can remove anyone; a member can remove themselves
-// (self-service "leave group", same as Outlook/Google Groups membership).
+// Remove a member from a group — the owner or a co-owner can remove anyone; a member can
+// remove themselves (self-service "leave group", same as Outlook/Google Groups membership).
 app.delete('/api/groups/:id/members/:email', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const { id, email } = req.params;
   const decodedEmail = decodeURIComponent(Array.isArray(email) ? email[0] : email);
   try {
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    const isOwner = groupResult.rows[0].user_id === req.user!.id;
     const isSelf = decodedEmail.toLowerCase() === req.user!.email.toLowerCase();
-    if (!isOwner && !isSelf) {
+    if (!access.allowed && !isSelf) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -1658,6 +1861,41 @@ app.delete('/api/groups/:id/members/:email', authenticateToken, async (req: Requ
     res.json({ message: 'Member removed' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove member', details: getErrorMessage(err) });
+  }
+});
+
+// Promote/demote a member to/from co-owner — owner or an existing co-owner can do this
+// (co-owners have every owner privilege except deleting the group, including managing
+// other co-owners).
+app.put('/api/groups/:id/members/:email/role', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id, email } = req.params;
+  const decodedEmail = decodeURIComponent(Array.isArray(email) ? email[0] : email);
+  const { role } = req.body;
+  if (role !== 'member' && role !== 'co-owner') {
+    res.status(400).json({ error: "role must be 'member' or 'co-owner'" });
+    return;
+  }
+  try {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
+      res.status(404).json({ error: 'Group not found' });
+      return;
+    }
+    if (!access.allowed) {
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+    const result = await pool.query(
+      'UPDATE group_members SET role = $1 WHERE group_id = $2 AND email = $3',
+      [role, id, decodedEmail]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+    res.json({ message: role === 'co-owner' ? 'Member promoted to co-owner' : 'Co-owner demoted to member' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update member role', details: getErrorMessage(err) });
   }
 });
 
@@ -1707,16 +1945,12 @@ app.post('/api/groups/:id/events', authenticateToken, async (req: Request, res: 
     return;
   }
   try {
-    // Verify group ownership
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    if (groupResult.rows[0].user_id !== req.user!.id) {
+    if (!access.allowed) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -1742,15 +1976,12 @@ app.patch('/api/groups/:id/events/:eventId', authenticateToken, async (req: Requ
   const { id, eventId } = req.params;
   const { title, description, date, endDate, location, isOnline, attendees } = req.body;
   try {
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    if (groupResult.rows[0].user_id !== req.user!.id) {
+    if (!access.allowed) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -1788,16 +2019,12 @@ app.patch('/api/groups/:id/events/:eventId', authenticateToken, async (req: Requ
 app.delete('/api/groups/:id/events/:eventId', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const { id, eventId } = req.params;
   try {
-    // Verify group ownership
-    const groupResult = await pool.query<{ user_id: number }>(
-      'SELECT user_id FROM groups WHERE id = $1',
-      [id]
-    );
-    if (groupResult.rows.length === 0) {
+    const access = await getGroupEditAccess(id, req.user!.id, req.user!.email);
+    if (!access.found) {
       res.status(404).json({ error: 'Group not found' });
       return;
     }
-    if (groupResult.rows[0].user_id !== req.user!.id) {
+    if (!access.allowed) {
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -3405,7 +3632,7 @@ app.get('/api/counts', authenticateToken, async (req: Request, res: Response): P
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_draft=true AND e.user_id=$2 AND e.is_deleted=false) AS drafts_total,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_archived=true AND (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false AND e.is_scheduled=false) AS archived_total,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_archived=true AND e.recipient=$1 AND e.is_deleted=false AND e.is_scheduled=false AND e.is_read=false) AS archived_unread,
-        COUNT(DISTINCT e.id) FILTER (WHERE e.scheduled_for IS NOT NULL AND (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false) AS scheduled_total,
+        COUNT(DISTINCT e.id) FILTER (WHERE e.scheduled_for IS NOT NULL AND (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false AND e.group_id IS NULL) AS scheduled_total,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_spam=true AND e.recipient=$1 AND e.is_deleted=false AND e.is_scheduled=false) AS spam_total,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_spam=true AND e.recipient=$1 AND e.is_deleted=false AND e.is_scheduled=false AND e.is_read=false) AS spam_unread,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_deleted=true AND (e.recipient=$1 OR e.sender=$1)) AS delete_total,
@@ -3416,8 +3643,32 @@ app.get('/api/counts', authenticateToken, async (req: Request, res: Response): P
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_subscription=true AND e.recipient=$1 AND e.is_deleted=false AND e.is_scheduled=false AND e.is_read=false) AS subscriptions_unread,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_report=true AND (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false) AS reports_total,
         COUNT(DISTINCT e.id) FILTER (WHERE e.is_report=true AND e.recipient=$1 AND e.is_deleted=false AND e.is_read=false) AS reports_unread,
-        COUNT(DISTINCT e.id) FILTER (WHERE (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false AND (EXISTS (SELECT 1 FROM email_groups eg JOIN groups g ON eg.group_id = g.id WHERE eg.email_id = e.id AND g.user_id = $2) OR EXISTS (SELECT 1 FROM group_members gm JOIN groups g ON gm.group_id = g.id WHERE gm.email = e.sender AND g.user_id = $2))) AS groups_total,
-        COUNT(DISTINCT e.id) FILTER (WHERE (e.recipient=$1 OR e.sender=$1) AND e.is_deleted=false AND e.is_read=false AND e.recipient=$1 AND (EXISTS (SELECT 1 FROM email_groups eg JOIN groups g ON eg.group_id = g.id WHERE eg.email_id = e.id AND g.user_id = $2) OR EXISTS (SELECT 1 FROM group_members gm JOIN groups g ON gm.group_id = g.id WHERE gm.email = e.sender AND g.user_id = $2))) AS groups_unread
+        (
+          SELECT COUNT(DISTINCT e2.id)::varchar
+          FROM emails e2
+          WHERE e2.is_deleted = false AND e2.group_id IS NOT NULL AND e2.group_id IN (
+            SELECT id FROM groups WHERE (user_id = $2 OR id IN (SELECT group_id FROM group_members WHERE email = $1)) AND deleted_at IS NULL
+          ) AND (e2.recipient = $1 OR (e2.sender = $1 AND NOT EXISTS (
+            SELECT 1 FROM group_members gm2 WHERE gm2.group_id = e2.group_id AND gm2.email = e2.recipient AND gm2.email != $1
+          )))
+        ) AS groups_total,
+        (
+          SELECT COUNT(DISTINCT e2.id)::varchar
+          FROM emails e2
+          WHERE e2.is_deleted = false AND e2.is_read = false AND e2.is_draft = false AND e2.is_scheduled = false AND e2.sender != $1 AND e2.recipient = $1
+            AND e2.group_id IS NOT NULL AND e2.group_id IN (
+              SELECT id FROM groups WHERE (user_id = $2 OR id IN (SELECT group_id FROM group_members WHERE email = $1)) AND deleted_at IS NULL
+            )
+        ) AS groups_unread,
+        (
+          SELECT COUNT(DISTINCT e2.id)::varchar
+          FROM emails e2
+          WHERE e2.is_deleted = false AND e2.is_scheduled = true AND e2.group_id IS NOT NULL AND e2.group_id IN (
+            SELECT id FROM groups WHERE (user_id = $2 OR id IN (SELECT group_id FROM group_members WHERE email = $1)) AND deleted_at IS NULL
+          ) AND (e2.recipient = $1 OR (e2.sender = $1 AND NOT EXISTS (
+            SELECT 1 FROM group_members gm2 WHERE gm2.group_id = e2.group_id AND gm2.email = e2.recipient AND gm2.email != $1
+          )))
+        ) AS groups_scheduled
        FROM emails e`,
       [email, userId]
     );
@@ -3436,7 +3687,7 @@ app.get('/api/counts', authenticateToken, async (req: Request, res: Response): P
       all:           { total: p(r.all_total),            unread: p(r.all_unread) },
       subscriptions: { total: p(r.subscriptions_total),  unread: p(r.subscriptions_unread) },
       reports:       { total: p(r.reports_total),        unread: p(r.reports_unread) },
-      groups:        { total: p(r.groups_total),         unread: p(r.groups_unread) },
+      groups:        { total: p(r.groups_total),         unread: p(r.groups_unread),       scheduled: p(r.groups_scheduled) },
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch counts', details: getErrorMessage(err) });
@@ -3654,10 +3905,6 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, async (_req: Reques
   }
 });
 
-app.get('/', (req: Request, res: Response): void => {
-  res.send('Mail App Backend Running');
-});
-
 // Background job: process due scheduled emails every 30 seconds
 const processScheduledEmails = async () => {
   try {
@@ -3707,6 +3954,19 @@ const cleanupOldScreenshots = () => {
 };
 cleanupOldScreenshots();
 setInterval(cleanupOldScreenshots, 24 * 60 * 60 * 1000);
+
+// Serve the built client (production), with SPA fallback for client-side routing
+const clientDistPath = path.join(process.cwd(), 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Start server
 const PORT = process.env.PORT ?? 5050;

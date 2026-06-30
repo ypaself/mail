@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, cloneElement, Fragment } from 'react'
+import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { MessageSquare, ArrowLeft, Mail, MailOpen, Check, Star, StarOff, Reply, Forward, Clock, AlertOctagon, Trash2, Archive, ArchiveRestore, RotateCcw, Send, AlarmClock, AlarmClockOff, Calendar, Sparkles, RefreshCw, Eye, EyeOff, Bold, Italic, Underline, Strikethrough, List, Link, Paperclip, Smile, ChevronDown, ChevronLeft, ChevronRight, Subscript, Superscript, Highlighter, Quote, Image, PenLine, Table2, Undo2, Redo2, MousePointer2, Lasso, Pencil, Eraser, Minus, Square, CheckSquare, Circle, Triangle, Diamond, Hand, ZoomIn, ZoomOut, Flag, FlagOff, FolderInput, Folder, FolderOpen, Tag, Plus, Printer, MoreVertical, BookOpen, Users, UserMinus, X as XIcon, AppWindow, Scissors, Copy, ClipboardPaste, MousePointer, ClipboardList, GitMerge, FileText, Download, CornerRightDown, SlidersHorizontal, ListFilter, SquareStack, Film, ShieldCheck, Pin, PinOff, Bell, BellOff, Ban, Inbox, BarChart2, AlertCircle, Edit } from 'lucide-react'
@@ -487,9 +488,21 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
   const [conversations, setConversations] = useState<Conversation[]>([])
   // groupId -> display info, used to route group-tagged emails into their own dedicated
   // conversation entry instead of folding them into a member's individual thread.
-  const [groupsById, setGroupsById] = useState<Map<number, { email: string; name: string }>>(new Map())
+  // `members` backs reply-all: replying within a group thread sends to every member,
+  // not just the group's own pseudo-address (which no inbox actually exists for).
+  const [groupsById, setGroupsById] = useState<Map<number, { email: string; name: string; members: string[] }>>(new Map())
   const groupsByIdRef = useRef(groupsById)
   groupsByIdRef.current = groupsById
+  // Reply-all, Outlook-Group style: opening or replying within a group thread targets
+  // every current member, not the group's own pseudo-address (no inbox exists for that).
+  const resolveToForContact = (contact: { email: string; groupId?: number } | undefined | null): string[] => {
+    if (!contact) return []
+    if (contact.groupId) {
+      const members = groupsByIdRef.current.get(contact.groupId)?.members
+      if (members && members.length > 0) return members
+    }
+    return [contact.email]
+  }
   const [now, setNow] = useState(Date.now())
   // These 'chat_*' sessionStorage keys are global/unscoped, shared by whichever instance
   // last wrote them — fine for the single main/generic instance they were designed for,
@@ -2311,7 +2324,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
         // flush-on-unmount) both see no draftId yet and each POST a new draft.
         const runSave = (): Promise<void> => {
           const isRealDraft = draftIdRef.current && draftIdRef.current > 0
-          const endpoint = isRealDraft ? `http://localhost:5050/api/emails/${draftIdRef.current}/draft` : 'http://localhost:5050/api/emails/draft'
+          const endpoint = isRealDraft ? `/api/emails/${draftIdRef.current}/draft` : `/api/emails/draft`
           const method = isRealDraft ? 'PUT' : 'POST'
           return fetch(endpoint, {
             method,
@@ -2360,7 +2373,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
         setConversations(prev => prev.map(c => c.id === currentConvIdRef.current ? { ...c, draftEmail: undefined } : c))
         const idToDelete = draftIdRef.current
         try { localStorage.removeItem(`draft_${idToDelete}_attachments`) } catch {}
-        const runDelete = (): Promise<void> => fetch(`http://localhost:5050/api/emails/${idToDelete}/draft`, {
+        const runDelete = (): Promise<void> => fetch(`/api/emails/${idToDelete}/draft`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
           keepalive: true
@@ -3506,13 +3519,22 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
   // folding into whichever member's individual 1-on-1 thread.
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:5050/api/groups', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ groups: [] })),
-      fetch('http://localhost:5050/api/groups/member-of', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ groups: [] })),
-    ]).then(([owned, memberOf]) => {
-      const map = new Map<number, { email: string; name: string }>()
-      for (const g of [...(owned.groups || []), ...(memberOf.groups || [])]) {
-        map.set(g.id, { email: g.groupEmail, name: g.name })
-      }
+      fetch(`/api/groups`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ groups: [] })),
+      fetch(`/api/groups/member-of`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ groups: [] })),
+    ]).then(async ([owned, memberOf]) => {
+      const groups = [...(owned.groups || []), ...(memberOf.groups || [])]
+      const memberLists = await Promise.all(
+        groups.map((g: { id: number }) =>
+          fetch(`/api/groups/${g.id}/members`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json())
+            .then(d => (d.members || []).map((m: { email: string } | string) => typeof m === 'string' ? m : m.email))
+            .catch(() => [])
+        )
+      )
+      const map = new Map<number, { email: string; name: string; members: string[] }>()
+      groups.forEach((g: { id: number; groupEmail: string; name: string }, i: number) => {
+        map.set(g.id, { email: g.groupEmail, name: g.name, members: memberLists[i] })
+      })
       setGroupsById(map)
     }).catch(() => {})
   }, [token])
@@ -3540,7 +3562,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
           return
         }
         try {
-          const res = await fetch('http://localhost:5050/api/send', {
+          const res = await fetch(`/api/send`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -3559,7 +3581,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
   useEffect(() => {
     if (!token) return
-    fetch('http://localhost:5050/api/custom-labels', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/custom-labels`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.labels) setCustomLabels(data.labels) })
       .catch(() => {})
@@ -3569,7 +3591,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
   // group, without an N+1 fetch per selected conversation.
   useEffect(() => {
     if (!token) return
-    fetch('http://localhost:5050/api/group-members/all', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/group-members/all`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.emails) setGroupedEmails(new Set(data.emails.map((e: string) => e.toLowerCase()))) })
       .catch(() => {})
@@ -3975,7 +3997,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
           setMessageSent(false)
           setDraftId(d.id ?? null)
         } else {
-          setToEmails([conversation.email])
+          setToEmails(resolveToForContact(conversation))
           setToInput('')
           setSubjectValue('')
           setInputValue('')
@@ -4176,7 +4198,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
       const emailResults = await Promise.all(
         folders.map(folder =>
-          fetch(`http://localhost:5050/api/${folder}`, {
+          fetch(`/api/${folder}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
             .then(res => res.json())
@@ -4354,7 +4376,20 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
     const me = userEmail.toLowerCase()
     const contactEmails = allEmailsRef.current.filter((email) => {
-      if (contact.groupId) return email.groupId === contact.groupId && !email.isDraft
+      if (contact.groupId) {
+        if (email.groupId !== contact.groupId || email.isDraft) return false
+        const recipientLower = email.to?.toLowerCase().trim()
+        // A group send is stored as one row per recipient (see /api/send) — every member's
+        // delivery copy shares the same group_id/subject/body/timestamp, so without this
+        // they'd render as N duplicate bubbles for what was actually a single message.
+        // Keep only the row addressed to me, or — when I'm the sender — the one row that
+        // isn't a single-other-member's individual delivery copy (i.e. my own thread copy).
+        if (recipientLower === me) return true
+        if (email.from?.toLowerCase().trim() !== me) return false
+        const members = groupsByIdRef.current.get(contact.groupId)?.members || []
+        const isSingleOtherMemberCopy = members.some(m => m.toLowerCase() !== me && m.toLowerCase() === recipientLower)
+        return !isSingleOtherMemberCopy
+      }
       const isOutgoing = email.from?.toLowerCase() === me || email.folder === 'sent' || !!email.isDraft
       const rawOther = isOutgoing ? email.to : email.from
       const otherEmail = rawOther?.split(',')[0]?.trim()?.toLowerCase()
@@ -4437,7 +4472,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     })
 
     try {
-      await fetch(`http://localhost:5050/api/emails/${emailId}/read`, {
+      await fetch(`/api/emails/${emailId}/read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ is_read: isRead }),
@@ -4539,12 +4574,17 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     list: string[],
     setList: React.Dispatch<React.SetStateAction<string[]>>,
     setInput: React.Dispatch<React.SetStateAction<string>>,
-    lockedEmail?: string
+    lockedEmail?: string,
+    allLocked?: boolean
   ) => {
     if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab' || e.key === ' ') {
       e.preventDefault()
       addTag(input, list, setList, setInput)
     } else if (e.key === 'Backspace' && input === '' && list.length > 0) {
+      // An open group thread collapses to one locked "group name (N)" chip — Backspace
+      // must not peel members off it one at a time, since there's nothing to show for
+      // a partial member list and the recipients aren't editable here anyway.
+      if (allLocked) return
       const last = list[list.length - 1]
       if (lockedEmail && last === lockedEmail) return
       setList(list.slice(0, -1))
@@ -4709,7 +4749,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
   const handleSendMessage = async () => {
     const currentInput = commitActiveCanvasToImage()
     const contact = conversations.find((c) => c.id === selectedConversation)
-    const finalTo = toInput.trim() ? [...toEmails, toInput.trim()] : toEmails.length > 0 ? toEmails : contact ? [contact.email] : []
+    const finalTo = toInput.trim() ? [...toEmails, toInput.trim()] : toEmails.length > 0 ? toEmails : resolveToForContact(contact)
 
     if (finalTo.length === 0) {
       setValidationError('Please specify at least one recipient.')
@@ -4777,16 +4817,17 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       cc: finalCc.join(', ') || undefined,
       bcc: finalBcc.join(', ') || undefined,
       attachments: attachedFiles.filter(f => f.dataUrl && f.dataUrl.includes(',')).map(f => ({ name: f.name, size: f.size, dataUrl: f.dataUrl! })),
-      // Tags the send with the active group compose session (if any) so it's delivered
-      // to every member and shows up in the Groups page / Chat Mail's dedicated group
-      // thread instead of being treated as a regular individual message.
-      ...(composeGroupId ? { groupId: composeGroupId } : {}),
+      // Tags the send with the active group compose session, or — when continuing an
+      // already-open group thread — that conversation's groupId, so it's delivered to
+      // every member and stays in the Groups page / Chat Mail's dedicated group thread
+      // instead of being treated as a regular individual message.
+      ...((composeGroupId ?? contact?.groupId) ? { groupId: composeGroupId ?? contact?.groupId } : {}),
     }
 
     if (window.name === 'compose_window') {
       const attemptSendImmediate = async () => {
         try {
-          await fetch('http://localhost:5050/api/send', {
+          await fetch(`/api/send`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -4813,7 +4854,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
           return
         }
         try {
-          const res = await fetch('http://localhost:5050/api/send', {
+          const res = await fetch(`/api/send`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -4838,9 +4879,10 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
   const handleResend = (msg: Message) => {
     const contact = conversations.find(c => c.id === selectedConversation)
-    const to = contact ? contact.email : ''
+    const resolvedTo = resolveToForContact(contact)
+    const to = resolvedTo.join(', ')
     setScrollToBottom('smooth')
-    
+
     const messageId = Date.now()
     const newMessage: Message = {
       id: messageId,
@@ -4854,7 +4896,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       isPending: true,
     }
     setMessages(prev => [...prev, newMessage])
-    bumpConvToTop(selectedConversation, to ? [to] : [], msg.content)
+    bumpConvToTop(selectedConversation, resolvedTo, msg.content)
 
     const payload = {
       to,
@@ -4874,7 +4916,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
           return
         }
         try {
-          const res = await fetch('http://localhost:5050/api/send', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+          const res = await fetch(`/api/send`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
           if (res.ok) {
             setMessages(prev => prev.map(m => m.id === messageId ? { ...m, isPending: false } : m))
             fetchEmails(true)
@@ -4929,10 +4971,10 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
   const buildPayload = (currentInput: string, extra?: object) => {
     const contact = conversations.find(c => c.id === selectedConversation)
-    const finalTo = toInput.trim() ? [...toEmails, toInput.trim()] : toEmails.length > 0 ? toEmails : [contact?.email ?? '']
+    const finalTo = toInput.trim() ? [...toEmails, toInput.trim()] : toEmails.length > 0 ? toEmails : resolveToForContact(contact)
     const finalCc = ccInput.trim() ? [...ccEmails, ccInput.trim()] : ccEmails
     const finalBcc = bccInput.trim() ? [...bccEmails, bccInput.trim()] : bccEmails
-    
+
     let finalBody = currentInput;
     if (replyEmailCard && replyEmailCard.action !== 'forward') {
       const dateStr = replyEmailCard.date ? new Date(replyEmailCard.date).toLocaleString() : ''
@@ -4946,10 +4988,11 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       ...(finalCc.length ? { cc: finalCc.join(', ') } : {}),
       ...(finalBcc.length ? { bcc: finalBcc.join(', ') } : {}),
       has_attachments: attachedFiles.length > 0,
-      // Tags the send with the active group compose session (if any) so it's delivered
-      // to every member and shows up in the Groups page / Chat Mail's dedicated group
-      // thread instead of being treated as a regular individual message.
-      ...(composeGroupId ? { groupId: composeGroupId } : {}),
+      // Tags the send with the active group compose session, or — when continuing an
+      // already-open group thread — that conversation's groupId, so it's delivered to
+      // every member and stays in the Groups page / Chat Mail's dedicated group thread
+      // instead of being treated as a regular individual message.
+      ...((composeGroupId ?? contact?.groupId) ? { groupId: composeGroupId ?? contact?.groupId } : {}),
       ...extra,
     }
   }
@@ -4975,7 +5018,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       const deletedDraftId = draftIdRef.current
       setConversations(prev => prev.map(c => c.id === currentConvIdRef.current ? { ...c, draftEmail: undefined } : c))
       try { localStorage.removeItem(`draft_${draftIdRef.current}_attachments`) } catch {}
-      fetch(`http://localhost:5050/api/emails/${draftIdRef.current}/draft`, {
+      fetch(`/api/emails/${draftIdRef.current}/draft`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {}).finally(() => {
@@ -4992,8 +5035,9 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!keepTo) {
       const contact = conversationsRef.current.find(c => c.id === selectedConversation)
       if (contact) {
-        setToEmails([contact.email])
-        setInitialToEmails([contact.email])
+        const resolvedTo = resolveToForContact(contact)
+        setToEmails(resolvedTo)
+        setInitialToEmails(resolvedTo)
       } else {
         setToEmails([])
         setInitialToEmails([])
@@ -5087,7 +5131,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
         return
       }
       try {
-        const res = await fetch('http://localhost:5050/api/send', {
+        const res = await fetch(`/api/send`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -5172,7 +5216,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
         return
       }
       try {
-        const res = await fetch('http://localhost:5050/api/send', {
+        const res = await fetch(`/api/send`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -5227,7 +5271,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ids.includes(m.emailId!) ? { ...m, isRead } : m))
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isRead } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5239,7 +5283,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ids.includes(m.emailId!) ? { ...m, isRead } : m))
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isRead } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setSelectionMode(false)
@@ -5251,7 +5295,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isStarred: nextStarred })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isStarred: nextStarred } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5261,7 +5305,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isArchived: nextArchived })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isArchived: nextArchived } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5270,7 +5314,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isDeleted: true })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isDeleted: true } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: true }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: true }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5287,7 +5331,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isDeleted: false })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isDeleted: false } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/restore`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/restore`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5301,7 +5345,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     // 'mailRefresh' refetch completes.
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, label_name: labelName } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5311,7 +5355,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isSpam: nextSpam })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isSpam: nextSpam } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5322,7 +5366,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setMessages(prev => prev.map(m => ({ ...m, isReport: nextReport })))
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isReport: nextReport } : e))
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5344,7 +5388,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       })
     })
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5356,7 +5400,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     setAllEmails(prev => prev.map(e => e.id != null && convEmailIds.includes(e.id) ? { ...e, isMuted: nextMuted } : e))
     setConvMuted(nextMuted)
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/mute`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_muted: nextMuted }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/mute`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_muted: nextMuted }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setHeaderMoreOpen(false)
@@ -5364,7 +5408,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
   const handleConvSnoozeHours = async (hours: number) => {
     try {
-      await Promise.all(convEmailIds.map(id => fetch(`http://localhost:5050/api/emails/${id}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: hours > 0, hours }) })))
+      await Promise.all(convEmailIds.map(id => fetch(`/api/emails/${id}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: hours > 0, hours }) })))
       setHeaderMoreOpen(false)
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
@@ -5405,7 +5449,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     }
     const convEmails = getConvEmailIds(conv).map(id => allEmails.find(e => e.id === id)).filter((e): e is Email => !!e)
     if (tab === 'inbox') return convEmails.some(e => e.folder === 'inbox')
-    if (tab === 'sent') return convEmails.some(e => e.folder === 'sent') || conv.isSent
+    if (tab === 'sent') return convEmails.some(e => e.folder === 'sent') || !!conv.isSent
     if (tab === 'starred') return convEmails.some(e => e.isStarred)
     if (tab === 'archive') return convEmails.some(e => e.isArchived)
     // Matches AllMailsPage's /api/scheduled (scheduled_for IS NOT NULL) — includes emails
@@ -5534,7 +5578,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!ids.length) return
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isRead } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/read`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_read: isRead }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5545,7 +5589,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!ids.length) return
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isStarred: nextStarred } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5556,7 +5600,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     const nextArchived = force ?? !ids.every(id => allEmails.find(e => e.id === id)?.isArchived)
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isArchived: nextArchived } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5565,7 +5609,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     const ids = selectedListEmailIds
     if (!ids.length) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: hours > 0, hours }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: hours > 0, hours }) })))
       setListSnoozeMenuOpen(false)
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
@@ -5579,7 +5623,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     const nextSpam = force ?? !listAnySpam
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isSpam: nextSpam } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5590,7 +5634,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     const nextReport = force ?? !listAnyReported
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isReport: nextReport } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5612,7 +5656,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
       })
     })
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5623,7 +5667,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     const nextMuted = force ?? !listAnyMuted
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isMuted: nextMuted } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/mute`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_muted: nextMuted }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/mute`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_muted: nextMuted }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
   }
@@ -5633,7 +5677,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!ids.length) return
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, label_name: labelName } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
       setListMoveMenuOpen(false)
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
@@ -5644,7 +5688,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!ids.length) return
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isDeleted: true } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: true }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: true }) })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setListSelectionMode(false)
@@ -5665,7 +5709,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
     if (!ids.length) return
     setAllEmails(prev => prev.map(e => e.id != null && ids.includes(e.id) ? { ...e, isDeleted: false } : e))
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/restore`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/restore`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })))
       window.dispatchEvent(new Event('mailRefresh'))
     } catch (err) { console.error(err) }
     setListSelectionMode(false)
@@ -5748,6 +5792,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
 
   const selectedContactName = conversations.find((c) => c.id === selectedConversation)?.name || 'Chat'
   const selectedContactEmail = conversations.find((c) => c.id === selectedConversation)?.email || ''
+  const selectedContactGroupId = conversations.find((c) => c.id === selectedConversation)?.groupId || null
 
   // Immersive Reader in list view has no open thread to read, so it targets a conversation
   // explicitly — the one checked (if exactly one), else the last one opened, else the first
@@ -6224,7 +6269,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                         setMessageSent(false)
                         setDraftId((d.id && d.id > 0) ? d.id : null)
                       } else {
-                        setToEmails([conv.email])
+                        setToEmails(resolveToForContact(conv))
                         setToInput('')
                         setSubjectValue('')
                         setInputValue('')
@@ -6286,7 +6331,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                               )}
                             </span>
                             {conv.lastEmail?.isPinned && (
-                              <Pin size={14} style={{ color: '#4caf50', flexShrink: 0, transform: 'rotate(-45deg)' }} title="Pinned" />
+                              <Pin size={14} style={{ color: '#4caf50', flexShrink: 0, transform: 'rotate(-45deg)' }}><title>Pinned</title></Pin>
                             )}
                           </div>
                         )
@@ -6336,8 +6381,8 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                               ) : null}
                               {rowLabelName && (
                                 rowLabelInfo?.hasChildren
-                                  ? <Folder size={14} title={rowLabelName} style={{ color: rowLabelColor, stroke: rowLabelColor, fill: 'none', flexShrink: 0 }} />
-                                  : <Tag size={14} title={rowLabelName} style={{ color: rowLabelColor, stroke: rowLabelColor, fill: 'none', flexShrink: 0 }} />
+                                  ? <Folder size={14} style={{ color: rowLabelColor, stroke: rowLabelColor, fill: 'none', flexShrink: 0 }}><title>{rowLabelName}</title></Folder>
+                                  : <Tag size={14} style={{ color: rowLabelColor, stroke: rowLabelColor, fill: 'none', flexShrink: 0 }}><title>{rowLabelName}</title></Tag>
                               )}
                               {hasAtts && <Paperclip size={13} style={{ color: '#888', flexShrink: 0, marginRight: '2px' }} />}
                               {displaySubject && displaySubject !== '(No subject)' ? (
@@ -6578,12 +6623,16 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
             })()}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
               {(() => {
+                if (selectedContactGroupId) return <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#7b5ea7', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Users size={18} /></div>
                 const displayEmail = selectedContactEmail || toEmails[0] || toInput || ''
                 if (displayEmail) return <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: getAvatarColor(displayEmail), color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '13px', flexShrink: 0 }}>{getAvatarInitials(displayEmail)}</div>
                 return <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#e0e0e0', flexShrink: 0 }} />
               })()}
-              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {(() => {
+                  if (selectedContactGroupId) {
+                    return <span style={{ fontWeight: 600, color: '#111' }}>{selectedContactName}</span>
+                  }
                   const displayEmail = selectedContactEmail || toEmails[0] || toInput || ''
                   if (displayEmail.includes('@')) {
                     const [name, domain] = displayEmail.split('@')
@@ -6593,7 +6642,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                 })()}
               </h2>
               {convAnyPinned && (
-                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, transform: 'rotate(-45deg)' }} title="Pinned" />
+                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, transform: 'rotate(-45deg)' }}><title>Pinned</title></Pin>
               )}
             </div>
             {/* Toolbar */}
@@ -7091,7 +7140,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                         )}
                         {/* Star */}
                         {!msg.isDeleted && (
-                          <ActionButton icon={<Star size={24} strokeWidth={1.5} fill={msg.isStarred ? 'currentColor' : 'none'} />} title={msg.isStarred ? 'Unstar' : 'Star'} hoverBg="#ffc107" active={!!msg.isStarred} crossColor="black" onClick={async () => { if (!msg.emailId || !token) return; const nextStarred = !msg.isStarred; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isStarred: nextStarred } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isStarred: nextStarred } : e)); try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isStarred: msg.isStarred } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isStarred: msg.isStarred } : e)) } }} />
+                          <ActionButton icon={<Star size={24} strokeWidth={1.5} fill={msg.isStarred ? 'currentColor' : 'none'} />} title={msg.isStarred ? 'Unstar' : 'Star'} hoverBg="#ffc107" active={!!msg.isStarred} crossColor="black" onClick={async () => { if (!msg.emailId || !token) return; const nextStarred = !msg.isStarred; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isStarred: nextStarred } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isStarred: nextStarred } : e)); try { await fetch(`/api/emails/${msg.emailId}/star`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_starred: nextStarred }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isStarred: msg.isStarred } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isStarred: msg.isStarred } : e)) } }} />
                         )}
                         {/* Reply */}
                         {!msg.isDeleted && (
@@ -7160,7 +7209,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                         {!msg.isDeleted && (
                           <ActionButton
                             icon={<Archive size={24} strokeWidth={1.5} />}
-                            title={msg.isArchived ? 'Unarchive' : 'Archive'} hoverBg="#7986cb" active={!!msg.isArchived} onClick={async () => { if (!msg.emailId || !token) return; const nextArchived = !msg.isArchived; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isArchived: nextArchived } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isArchived: nextArchived } : e)); try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isArchived: msg.isArchived } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isArchived: msg.isArchived } : e)) } }} />
+                            title={msg.isArchived ? 'Unarchive' : 'Archive'} hoverBg="#7986cb" active={!!msg.isArchived} onClick={async () => { if (!msg.emailId || !token) return; const nextArchived = !msg.isArchived; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isArchived: nextArchived } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isArchived: nextArchived } : e)); try { await fetch(`/api/emails/${msg.emailId}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isArchived: msg.isArchived } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isArchived: msg.isArchived } : e)) } }} />
                         )}
                         {/* Snooze */}
                         {!msg.isDeleted && (
@@ -7170,7 +7219,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                               <div className="snooze-dropdown-menu" style={{ position: 'absolute', bottom: '100%', ...(msg.incoming ? { left: 0 } : { right: 0 }), marginBottom: '4px', backgroundColor: 'white', border: '1px solid #ddd', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 1000, minWidth: '250px' }} onClick={(e) => e.stopPropagation()}>
                                 <div style={{ padding: '8px 16px 6px', fontSize: '12px', fontWeight: 600, color: '#888', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #f0f0f0' }}><Clock size={13} style={{ flexShrink: 0 }} />Snooze until...</div>
                                 {getDynamicSnoozeOptions().map(opt => (
-                                  <button key={opt.label} style={{ width: '100%', padding: '10px 16px', backgroundColor: 'white', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', cursor: 'pointer', fontSize: '13px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f5f5f5'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'} onClick={async () => { if (!msg.emailId || !token) return; try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: true, hours: opt.hours }) }); setSnoozeMenuOpen(null); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) } }}>
+                                  <button key={opt.label} style={{ width: '100%', padding: '10px 16px', backgroundColor: 'white', border: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', cursor: 'pointer', fontSize: '13px' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f5f5f5'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'} onClick={async () => { if (!msg.emailId || !token) return; try { await fetch(`/api/emails/${msg.emailId}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: true, hours: opt.hours }) }); setSnoozeMenuOpen(null); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) } }}>
                                     <span>{opt.shortLabel}</span><span style={{ color: '#888', fontWeight: 500, fontSize: '13px', whiteSpace: 'nowrap' }}>{opt.timeText}</span>
                                   </button>
                                 ))}
@@ -7266,7 +7315,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', padding: '10px 16px', borderTop: '1px solid #e0e0e0' }}>
                                           <button onClick={() => setShowSnoozePickerDropdown(null)} style={{ padding: '6px 16px', borderRadius: '16px', border: '1px solid #e0e0e0', background: '#fff', color: '#555', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
-                                          <button disabled={!scheduleDate} onClick={async (e) => { e.stopPropagation(); if (!msg.emailId || !token || !scheduleDate) return; const hour24 = schedulePeriod === 'AM' ? scheduleHour % 12 : (scheduleHour % 12) + 12; const target = new Date(`${scheduleDate}T${String(hour24).padStart(2,'0')}:${String(scheduleMinute).padStart(2,'0')}`); const hours = Math.max(0.1, (target.getTime() - Date.now()) / 3600000); try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: true, hours }) }); setShowSnoozePickerDropdown(null); setSnoozeMenuOpen(null); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) } }} style={{ padding: '6px 16px', borderRadius: '16px', border: 'none', background: scheduleDate ? '#fb8c00' : '#ffe0b2', color: '#fff', fontSize: '13px', cursor: scheduleDate ? 'pointer' : 'not-allowed', fontWeight: 600 }}>Snooze</button>
+                                          <button disabled={!scheduleDate} onClick={async (e) => { e.stopPropagation(); if (!msg.emailId || !token || !scheduleDate) return; const hour24 = schedulePeriod === 'AM' ? scheduleHour % 12 : (scheduleHour % 12) + 12; const target = new Date(`${scheduleDate}T${String(hour24).padStart(2,'0')}:${String(scheduleMinute).padStart(2,'0')}`); const hours = Math.max(0.1, (target.getTime() - Date.now()) / 3600000); try { await fetch(`/api/emails/${msg.emailId}/snooze`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_snoozed: true, hours }) }); setShowSnoozePickerDropdown(null); setSnoozeMenuOpen(null); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) } }} style={{ padding: '6px 16px', borderRadius: '16px', border: 'none', background: scheduleDate ? '#fb8c00' : '#ffe0b2', color: '#fff', fontSize: '13px', cursor: scheduleDate ? 'pointer' : 'not-allowed', fontWeight: 600 }}>Snooze</button>
                                         </div>
                                       </div>
                                     )
@@ -7278,11 +7327,11 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                         )}
                         {/* Spam */}
                         {msg.incoming && !msg.isDeleted && (
-                          <ActionButton icon={<AlertOctagon size={24} strokeWidth={1.5} />} title={msg.isSpam ? 'Not spam' : 'Mark as spam'} hoverBg="#e91e63" active={!!msg.isSpam} onClick={async () => { if (!msg.emailId || !token) return; const nextSpam = !msg.isSpam; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isSpam: nextSpam } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isSpam: nextSpam } : e)); try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isSpam: msg.isSpam } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isSpam: msg.isSpam } : e)) } }} />
+                          <ActionButton icon={<AlertOctagon size={24} strokeWidth={1.5} />} title={msg.isSpam ? 'Not spam' : 'Mark as spam'} hoverBg="#e91e63" active={!!msg.isSpam} onClick={async () => { if (!msg.emailId || !token) return; const nextSpam = !msg.isSpam; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isSpam: nextSpam } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isSpam: nextSpam } : e)); try { await fetch(`/api/emails/${msg.emailId}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isSpam: msg.isSpam } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isSpam: msg.isSpam } : e)) } }} />
                         )}
                         {/* Report */}
                         {msg.incoming && !msg.isDeleted && (
-                          <ActionButton icon={<span style={{ position: 'relative', display: 'inline-flex' }}><Flag size={24} strokeWidth={1.5} fill={msg.isReport ? 'currentColor' : 'none'} /><span style={{ position: 'absolute', top: -2, right: -3, width: 11, height: 11, borderRadius: '50%', backgroundColor: '#7b5ea7', color: 'white', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white' }}>!</span></span>} title={msg.isReport ? 'Unreport' : 'Report'} hoverBg="#7b5ea7" active={!!msg.isReport} onClick={async () => { if (!msg.emailId || !token) return; const nextReport = !msg.isReport; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isReport: nextReport } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isReport: nextReport } : e)); try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isReport: msg.isReport } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isReport: msg.isReport } : e)) } }} />
+                          <ActionButton icon={<span style={{ position: 'relative', display: 'inline-flex' }}><Flag size={24} strokeWidth={1.5} fill={msg.isReport ? 'currentColor' : 'none'} /><span style={{ position: 'absolute', top: -2, right: -3, width: 11, height: 11, borderRadius: '50%', backgroundColor: '#7b5ea7', color: 'white', fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid white' }}>!</span></span>} title={msg.isReport ? 'Unreport' : 'Report'} hoverBg="#7b5ea7" active={!!msg.isReport} onClick={async () => { if (!msg.emailId || !token) return; const nextReport = !msg.isReport; setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isReport: nextReport } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isReport: nextReport } : e)); try { await fetch(`/api/emails/${msg.emailId}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isReport: msg.isReport } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isReport: msg.isReport } : e)) } }} />
                         )}
                         {/* View/Hide deleted */}
                         {msg.isDeleted && (
@@ -7294,7 +7343,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                             if (!msg.emailId || !token) return
                             const nextDeleted = !msg.isDeleted
                             setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: nextDeleted } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isDeleted: nextDeleted } : e)); onEmailDeleteChange?.(msg.emailId, nextDeleted)
-                            try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: nextDeleted }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: msg.isDeleted } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isDeleted: msg.isDeleted } : e)); onEmailDeleteChange?.(msg.emailId, msg.isDeleted ?? false) }
+                            try { await fetch(`/api/emails/${msg.emailId}/delete`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_deleted: nextDeleted }) }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err); setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: msg.isDeleted } : m)); setAllEmails(prev => prev.map(e => e.id === msg.emailId ? { ...e, isDeleted: msg.isDeleted } : e)); onEmailDeleteChange?.(msg.emailId, msg.isDeleted ?? false) }
                           }
                           if (msg.isDeleted) { doDelete(); return }
                           setConfirmDialog({ title: 'Delete message?', message: 'Move this message to Trash?', onConfirm: doDelete })
@@ -7308,7 +7357,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                               onConfirm: async () => {
                                 if (!msg.emailId || !token) return
                                 setMessages(prev => prev.filter(m => m.id !== msg.id)); setAllEmails(prev => prev.filter(e => e.id !== msg.emailId))
-                                try { await fetch(`http://localhost:5050/api/emails/${msg.emailId}/permanent`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) }
+                                try { await fetch(`/api/emails/${msg.emailId}/permanent`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); window.dispatchEvent(new Event('mailRefresh')) } catch (err) { console.error('Error:', err) }
                               },
                             })
                           }} />
@@ -7665,6 +7714,18 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
               <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '3px 10px', flexWrap: 'wrap', gap: '4px', backgroundColor: '#fff' }}>
                 <span style={{ fontSize: '14px', color: '#666', fontWeight: 600, marginRight: '4px', flexShrink: 0 }}>To</span>
                 {(() => {
+                  // Continuing an already-open group thread (not a fresh "compose to group")
+                  // — recipients are fixed to the group's current members, so show one
+                  // locked chip with the group name instead of every member's address.
+                  if (selectedContactGroupId && composeGroupMembers.length === 0) {
+                    return (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: '#f5f5f5', borderRadius: '12px', padding: '2px 8px', fontSize: '17px' }}>
+                        <Users size={14} style={{ color: '#555' }} />
+                        <span style={{ fontWeight: 600, color: '#333' }}>{selectedContactName}</span>
+                        <span style={{ fontWeight: 300, color: '#888' }}>({toEmails.length})</span>
+                      </span>
+                    )
+                  }
                   const groupChipEmails = composeGroupMembers.length > 0 ? toEmails.filter(e => composeGroupMembers.includes(e)) : []
                   if (groupChipEmails.length === 0) return null
                   return (
@@ -7687,7 +7748,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                     </span>
                   )
                 })()}
-                {toEmails.filter(email => !composeGroupMembers.includes(email)).map(email => {
+                {!(selectedContactGroupId && composeGroupMembers.length === 0) && toEmails.filter(email => !composeGroupMembers.includes(email)).map(email => {
                   const isExisting = initialToEmails.includes(email)
                   const isLocked = messageSent || isExisting || (contactEmail && email.toLowerCase() === contactEmail.toLowerCase())
                   const [name, domain] = email.split('@')
@@ -7716,7 +7777,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                           setActiveField(null)
                         }, 150)
                       }}
-                      onKeyDown={e => handleTagKeyDown(e, toInput, toEmails, setToEmails, setToInput, conversations.find(c => c.id === selectedConversation)?.email)}
+                      onKeyDown={e => handleTagKeyDown(e, toInput, toEmails, setToEmails, setToInput, conversations.find(c => c.id === selectedConversation)?.email, !!selectedContactGroupId && composeGroupMembers.length === 0)}
                       placeholder={toEmails.length === 0 ? 'Recipients...' : ''}
                       style={{ width: '100%', backgroundColor: 'white', border: 'none', outline: 'none', fontSize: '17px', fontFamily: 'inherit', padding: '4px 0' }}
                     />
@@ -8348,7 +8409,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                           }
                           await Promise.all(files.map(file => {
                             const fd = new FormData(); fd.append('file', file); fd.append('thumbnail', '')
-                            return fetch('http://localhost:5050/api/attachments/upload', { method: 'POST', body: fd })
+                            return fetch(`/api/attachments/upload`, { method: 'POST', body: fd })
                               .then(() => { done++; updateProgress() }).catch(() => { done++; updateProgress() })
                           }))
                           editorRef.current?.querySelector(`[data-card-id="${cardId}"] [data-folder-progress]`)?.parentElement?.remove()
@@ -9735,7 +9796,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                       }
                       await Promise.all(folderFiles.map(file => {
                         const fd = new FormData(); fd.append('file', file); fd.append('thumbnail', '')
-                        return fetch('http://localhost:5050/api/attachments/upload', { method: 'POST', body: fd })
+                        return fetch(`/api/attachments/upload`, { method: 'POST', body: fd })
                           .then(() => { done++; updateProgress() }).catch(() => { done++; updateProgress() })
                       }))
                       editor.querySelector(`[data-card-id="${cardId}"] [data-folder-progress]`)?.parentElement?.remove()
@@ -9824,7 +9885,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                             }
                             await Promise.all(newFiles.map(file => {
                               const fd = new FormData(); fd.append('file', file); fd.append('thumbnail', '')
-                              return fetch('http://localhost:5050/api/attachments/upload', { method: 'POST', body: fd })
+                              return fetch(`/api/attachments/upload`, { method: 'POST', body: fd })
                                 .then(() => { done++; updateProgress() }).catch(() => { done++; updateProgress() })
                             }))
                             editor.querySelector(`[data-card-id="${cardId}"] [data-folder-progress]`)?.parentElement?.remove()
@@ -9929,7 +9990,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                       const removeOverlay = () => getCard()?.querySelector('[data-upload-overlay]')?.remove()
 
                       const xhr = new XMLHttpRequest()
-                      xhr.open('POST', 'http://localhost:5050/api/attachments/upload', true)
+                      xhr.open('POST', `/api/attachments/upload`, true)
 
                       xhr.upload.onloadstart = () => injectOverlay()
 
@@ -9946,8 +10007,8 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                               const card = getCard()
                               if (card) {
                                 const img = card.querySelector('img')
-                                if (img) img.src = 'http://localhost:5050' + data.thumbUrl
-                                card.setAttribute('data-file-url', 'http://localhost:5050' + (data.url || ''))
+                                if (img) img.src = `` + data.thumbUrl
+                                card.setAttribute('data-file-url', `` + (data.url || ''))
                                 setInputValue(editorRef.current.innerHTML)
                               }
                             }
@@ -10914,7 +10975,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                   const msg = messages.find(m => m.id === showSnoozePopup)
                   if (msg && msg.emailId) {
                     try {
-                      await fetch(`http://localhost:5050/api/emails/${msg.emailId}/snooze`, {
+                      await fetch(`/api/emails/${msg.emailId}/snooze`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ is_snoozed: true, hours }),
@@ -11004,7 +11065,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                   const msg = messages.find(m => m.id === showSnoozePopup)
                   if (msg && msg.emailId) {
                     try {
-                      await fetch(`http://localhost:5050/api/emails/${msg.emailId}/snooze`, {
+                      await fetch(`/api/emails/${msg.emailId}/snooze`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ is_snoozed: true, hours }),
@@ -11141,7 +11202,7 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                           setAllEmails(prev => prev.map(e => e.id === targetId ? { ...e, label_name: label.fullPath } : e))
                           setMoveToMenuOpen(null); setMoveMenuPosition(null); setLabelSearchQuery('')
                           try {
-                            await fetch(`http://localhost:5050/api/emails/${targetId}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: label.fullPath }) })
+                            await fetch(`/api/emails/${targetId}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: label.fullPath }) })
                             window.dispatchEvent(new Event('mailRefresh'))
                           } catch (err) { console.error('Error:', err) }
                         }}
@@ -11339,13 +11400,13 @@ export default function ChatMailPage({ token, userEmail, contactEmail, highlight
                 try {
                   const payload: any = { name: clLabelName, color: clLabelColor || '#607d8b' }
                   if (clParentId) payload.parent_label_id = clParentId
-                  const res = await fetch('http://localhost:5050/api/custom-labels', {
+                  const res = await fetch(`/api/custom-labels`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                     body: JSON.stringify(payload),
                   })
                   if (res.ok) {
-                    const updated = await fetch('http://localhost:5050/api/custom-labels', { headers: { Authorization: `Bearer ${token}` } })
+                    const updated = await fetch(`/api/custom-labels`, { headers: { Authorization: `Bearer ${token}` } })
                     if (updated.ok) { const d = await updated.json(); setCustomLabels(d.labels || []) }
                     setShowCreateLabelModal(false)
                   } else {

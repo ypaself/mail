@@ -67,7 +67,7 @@ export default function SpamPage({ token, onViewEmail }: SpamPageProps) {
     setLoading(true)
     setError('')
     try {
-      const response = await fetch('http://localhost:5050/api/spam', {
+      const response = await fetch(`/api/spam`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -91,7 +91,7 @@ export default function SpamPage({ token, onViewEmail }: SpamPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -112,7 +112,7 @@ export default function SpamPage({ token, onViewEmail }: SpamPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/spam`, {
+      const response = await fetch(`/api/emails/${emailId}/spam`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

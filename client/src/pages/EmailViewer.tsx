@@ -33,7 +33,7 @@ export default function EmailViewer({ email, onBack, token = '', onReply }: Emai
 
     setLoading(true)
     try {
-      await fetch(`http://localhost:5050/api/emails/${email.id}/read`, {
+      await fetch(`/api/emails/${email.id}/read`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

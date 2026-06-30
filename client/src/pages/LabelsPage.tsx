@@ -71,8 +71,8 @@ export default function LabelsPage({ token, onViewEmail }: LabelsPageProps) {
     setError('')
     try {
       const endpoint = labelName
-        ? `http://localhost:5050/api/labels/${encodeURIComponent(labelName)}`
-        : 'http://localhost:5050/api/labels'
+        ? `/api/labels/${encodeURIComponent(labelName)}`
+        : `/api/labels`
       const response = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -100,7 +100,7 @@ export default function LabelsPage({ token, onViewEmail }: LabelsPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -121,7 +121,7 @@ export default function LabelsPage({ token, onViewEmail }: LabelsPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/label`, {
+      const response = await fetch(`/api/emails/${emailId}/label`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

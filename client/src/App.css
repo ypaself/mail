@@ -3896,7 +3896,7 @@ div[style*="sticky"] {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 10px;
   border-bottom: 1px solid #e0e0e0;
   background-color: #f9f9f9;
 }
@@ -4218,6 +4218,15 @@ div[style*="sticky"] {
   background: #fafafa; display: flex; flex-direction: column;
 }
 .file-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #bbb; transform: translateY(-2px); }
+.git-log-list { display: flex; flex-direction: column; gap: 2px; max-width: 800px; }
+.git-log-item {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+  border: 1px solid transparent; border-radius: 8px; transition: background 0.15s;
+}
+.git-log-item:hover { background-color: #f5f5f5; border-color: #e0e0e0; }
+.git-log-message { font-size: 14px; font-weight: 500; color: #222; word-break: break-word; }
+.git-log-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: #888; }
+.git-log-hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .file-preview {
   height: 120px; background: #f0f4ff; display: flex; align-items: center;
   justify-content: center; color: #667eea;
@@ -8267,6 +8276,14 @@ textarea {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  padding-top: 0;
+}
+
+.groups-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #333;
 }
 
 .groups-header h2 {
@@ -8276,12 +8293,25 @@ textarea {
   margin: 0;
 }
 
+.new-group-btn-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+}
+
+.new-group-btn-label {
+  font-size: 11px;
+  color: #333;
+}
+
 .new-group-btn {
   background: none;
   border: 1px solid #e0e0e0;
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8291,9 +8321,9 @@ textarea {
 }
 
 .new-group-btn:hover {
-  background-color: #f5f5f5;
-  border-color: #333;
-  color: #333;
+  border-color: #43a047;
+  background-color: #e0e0e0;
+  color: black;
 }
 
 .groups-list-view {
@@ -8522,8 +8552,22 @@ textarea {
 
 .edit-group-photo-row {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 24px;
+}
+
+.edit-group-photo-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.edit-group-fields-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
 }
 
 .edit-group-photo-wrapper {
@@ -8581,12 +8625,20 @@ textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  border-bottom: 1px solid #ccc;
-  padding-bottom: 6px;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #c0c0c0;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+
+.group-email-edit-row:focus-within {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .group-email-edit-row.has-error {
-  border-bottom-color: #d32f2f;
+  border-color: #d32f2f;
 }
 
 .group-email-edit-row .group-email-local-input {
@@ -8595,10 +8647,10 @@ textarea {
   max-width: 220px;
   border: none;
   outline: none;
-  font-size: 14px;
+  font-size: 1rem;
   font-weight: 500;
   color: #333;
-  padding: 4px 0;
+  padding: 0;
   min-width: 80px;
   flex-shrink: 1;
 }
@@ -8719,15 +8771,36 @@ textarea {
 .group-header-icon-btn {
   background: none;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 50%;
   color: #555;
   cursor: pointer;
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+}
+
+.group-header-icon-btn-double {
+  width: auto;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.calendar-plus-wrapper {
+  position: relative;
+}
+
+.calendar-plus-icon {
+  transform: translateX(-3px);
+}
+
+.calendar-plus-badge {
+  position: absolute;
+  bottom: 9px;
+  right: 2px;
+  display: flex;
 }
 
 .group-header-icon-btn:hover {
@@ -8751,6 +8824,13 @@ textarea {
 
 .group-header-action:hover .group-header-action-label {
   color: #1976d2;
+}
+
+.group-header-action-label-top {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .group-avatar-photo {
@@ -8805,9 +8885,9 @@ textarea {
 }
 
 .color-picker-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 28px);
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .color-swatch {
@@ -8910,14 +8990,14 @@ textarea {
 }
 
 .group-avatar-small {
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 12px;
+  font-size: 18px;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -8941,6 +9021,25 @@ textarea {
   color: #999;
 }
 
+.group-name-edit-btn {
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: 10px;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.group-name-edit-btn:hover {
+  color: #1976d2;
+  background-color: #f0f4fa;
+}
+
 .group-tabs {
   display: flex;
   gap: 4px;
@@ -8949,6 +9048,9 @@ textarea {
 }
 
 .group-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -9647,15 +9749,18 @@ textarea {
 }
 
 .member-avatar {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   flex-shrink: 0;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  line-height: 1;
   color: white;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 
@@ -9663,6 +9768,7 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 18px;
 }
 
 .member-email-name {
@@ -9681,10 +9787,11 @@ textarea {
 }
 
 .member-action-col {
-  width: 28px;
+  width: 56px;
   flex-shrink: 0;
   display: flex;
   justify-content: center;
+  gap: 4px;
 }
 
 .member-self-tag {
@@ -10197,4 +10304,67 @@ ul.star-marker-list > li::before {
   align-items: center;
   font-weight: bold;
   transform: translateY(2.5px);
+}
+
+.groups-sidebar .groups-list {
+  gap: 4px !important;
+}
+
+/* Groups page sidebar items layout overrides to mimic main sidebar folder items */
+.groups-sidebar .sidebar-folder-wrapper {
+  background-color: #f0f0f0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100% !important;
+  border: 0.5px solid transparent !important;
+  box-shadow: none !important;
+  height: 48px !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper:hover {
+  background-color: #e8e8e8 !important;
+  border-color: transparent !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6) !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper:has(.sidebar-item.active) {
+  background-color: white !important;
+  border: 0.5px solid #888888 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper:has(.sidebar-item.active):hover {
+  background-color: #f9f9f9 !important;
+  border: 0.5px solid #888888 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper .sidebar-item {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding-left: 4px !important;
+  padding-right: 8px !important;
+  border-radius: 24px !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #333 !important;
+  height: 48px !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper .sidebar-item.active {
+  color: #333 !important;
+}
+
+.groups-sidebar .sidebar-folder-wrapper .sidebar-item .group-avatar-mini {
+  transition: transform 0.2s ease;
+}
+
+.groups-sidebar .sidebar-folder-wrapper:hover .sidebar-item .group-avatar-mini {
+  transform: scale(1.05);
+}
+
+.groups-sidebar .sidebar-folder-wrapper.deleted-group-wrapper:hover {
+  background-color: #f0f0f0 !important;
 }

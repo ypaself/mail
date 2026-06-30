@@ -47,7 +47,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     setError('')
     try {
       // Fetch sent emails
-      const sentResponse = await fetch('http://localhost:5050/api/sent', {
+      const sentResponse = await fetch(`/api/sent`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -71,7 +71,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -92,7 +92,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
+      const response = await fetch(`/api/emails/${emailId}/snooze`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -115,7 +115,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/archive`, {
+      const response = await fetch(`/api/emails/${emailId}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -134,7 +134,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/purchase`, {
+      const response = await fetch(`/api/emails/${emailId}/purchase`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -155,7 +155,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     const scheduledFor = new Date(Date.now() + 24 * 60 * 60 * 1000) // Schedule for tomorrow
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/schedule`, {
+      const response = await fetch(`/api/emails/${emailId}/schedule`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ scheduledFor }),
@@ -175,7 +175,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/important`, {
+      const response = await fetch(`/api/emails/${emailId}/important`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -194,7 +194,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/spam`, {
+      const response = await fetch(`/api/emails/${emailId}/spam`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -213,7 +213,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/delete`, {
+      const response = await fetch(`/api/emails/${emailId}/delete`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -232,7 +232,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/subscription`, {
+      const response = await fetch(`/api/emails/${emailId}/subscription`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -251,7 +251,7 @@ export default function SentPage({ token, onViewEmail }: SentPageProps) {
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/label`, {
+      const response = await fetch(`/api/emails/${emailId}/label`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })

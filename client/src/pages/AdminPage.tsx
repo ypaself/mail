@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { AlertOctagon, MessageSquare, CheckCircle, Clock, AlertCircle, Trash2, ChevronDown, ChevronUp, Image, RefreshCw, X } from 'lucide-react'
 import '../styles/AdminPage.css'
 
-const API = 'http://localhost:5050'
+const API = ``
 
 type ErrorStatus = 'new' | 'in_progress' | 'solved'
 type FeedbackStatus = 'new' | 'in_progress' | 'resolved'

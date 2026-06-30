@@ -64,7 +64,7 @@ export default function ChatPage() {
   const fetchEmails = async () => {
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:5050/api/emails', {
+      const response = await fetch(`/api/emails`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const data = await response.json()
@@ -172,7 +172,7 @@ export default function ChatPage() {
       setMessages([...messages, newMessage])
 
       try {
-        await fetch('http://localhost:5050/api/send', {
+        await fetch(`/api/send`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
@@ -198,7 +198,7 @@ export default function ChatPage() {
       .map(msg => msg.emailId as number)
     if (unreadEmailIds.length === 0) return
     try {
-      await fetch('http://localhost:5050/api/emails/batch', {
+      await fetch(`/api/emails/batch`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ids: unreadEmailIds, action: 'read', value: true }),
@@ -233,7 +233,7 @@ export default function ChatPage() {
     const ids = isRead ? readIds : unreadIds
     if (ids.length === 0) return
     try {
-      await fetch('http://localhost:5050/api/emails/batch', {
+      await fetch(`/api/emails/batch`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ids, action: 'read', value: isRead ? false : true }),

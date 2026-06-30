@@ -380,7 +380,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
   // Lets the Group/Ungroup toolbar buttons know whether a contact is already in any
   // group, without an N+1 fetch per selected email.
   useEffect(() => {
-    fetch('http://localhost:5050/api/group-members/all', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/group-members/all`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setGroupedEmails(new Set((data.emails || []).map((e: string) => e.toLowerCase()))))
       .catch(err => console.error('Failed to fetch group members:', err))
@@ -637,7 +637,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
   useEffect(() => {
     const fetchLabels = async () => {
       try {
-        const response = await fetch('http://localhost:5050/api/custom-labels', {
+        const response = await fetch(`/api/custom-labels`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (response.ok) {
@@ -686,7 +686,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
       const childFullName = `${labelName ? decodeURIComponent(labelName) : ''} / ${child.name}`
       if (childCountsMap.has(childFullName)) return
       try {
-        const res = await fetch(`http://localhost:5050/api/labels/${encodeURIComponent(childFullName)}?page=1&limit=1`, {
+        const res = await fetch(`/api/labels/${encodeURIComponent(childFullName)}?page=1&limit=1`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (res.ok) {
@@ -1263,27 +1263,27 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     setLoading(true)
     setError('')
     try {
-      let url = 'http://localhost:5050/api/allmails'
+      let url = `/api/allmails`
       
       switch (type) {
-        case 'inbox': url = 'http://localhost:5050/api/inbox'; break;
-        case 'sent': url = 'http://localhost:5050/api/sent'; break;
-        case 'starred': url = 'http://localhost:5050/api/starred'; break;
-        case 'snoozed': url = 'http://localhost:5050/api/snoozed'; break;
-        case 'drafts': url = 'http://localhost:5050/api/drafts'; break;
-        case 'archived': url = 'http://localhost:5050/api/archived'; break;
-        case 'purchased': url = 'http://localhost:5050/api/purchased'; break;
-        case 'scheduled': url = 'http://localhost:5050/api/scheduled'; break;
-        case 'important': url = 'http://localhost:5050/api/important'; break;
-        case 'spam': url = 'http://localhost:5050/api/spam'; break;
-        case 'delete': url = 'http://localhost:5050/api/delete'; break;
-        case 'subscriptions': url = 'http://localhost:5050/api/subscriptions'; break;
-        case 'reports': url = 'http://localhost:5050/api/reports'; break;
+        case 'inbox': url = `/api/inbox`; break;
+        case 'sent': url = `/api/sent`; break;
+        case 'starred': url = `/api/starred`; break;
+        case 'snoozed': url = `/api/snoozed`; break;
+        case 'drafts': url = `/api/drafts`; break;
+        case 'archived': url = `/api/archived`; break;
+        case 'purchased': url = `/api/purchased`; break;
+        case 'scheduled': url = `/api/scheduled`; break;
+        case 'important': url = `/api/important`; break;
+        case 'spam': url = `/api/spam`; break;
+        case 'delete': url = `/api/delete`; break;
+        case 'subscriptions': url = `/api/subscriptions`; break;
+        case 'reports': url = `/api/reports`; break;
         case 'group':
-          if (groupId) url = `http://localhost:5050/api/groups/${groupId}/emails${groupFilter ? `?filter=${encodeURIComponent(groupFilter)}` : ''}`;
+          if (groupId) url = `/api/groups/${groupId}/emails${groupFilter ? `?filter=${encodeURIComponent(groupFilter)}` : ''}`;
           break;
         case 'label':
-          if (labelName) url = `http://localhost:5050/api/labels/${encodeURIComponent(labelName)}${includeChildren ? '?includeChildren=true' : ''}`;
+          if (labelName) url = `/api/labels/${encodeURIComponent(labelName)}${includeChildren ? '?includeChildren=true' : ''}`;
           break;
       }
 
@@ -1347,7 +1347,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/star`, {
+      const response = await fetch(`/api/emails/${emailId}/star`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1374,7 +1374,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
     try {
       const unarchiveEmail = allEmails.find(email => email.id === emailId)
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/archive`, {
+      const response = await fetch(`/api/emails/${emailId}/archive`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1383,7 +1383,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
         setAllEmails(allEmails.filter(email => email.id !== emailId))
         setTotalEmails(prev => Math.max(0, prev - 1))
         const undoUnarchive = async () => {
-          await fetch(`http://localhost:5050/api/emails/${emailId}/archive`, {
+          await fetch(`/api/emails/${emailId}/archive`, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}` },
           })
@@ -1406,7 +1406,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     if (!emailId) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/delete`, {
+      const response = await fetch(`/api/emails/${emailId}/delete`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1474,7 +1474,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           onRefreshCounts?.()
 
           const undo = async () => {
-            await fetch(`http://localhost:5050/api/emails/${emailId}/delete`, {
+            await fetch(`/api/emails/${emailId}/delete`, {
               method: 'PUT', headers: { Authorization: `Bearer ${token}` },
             })
             setAllEmails(prev => prev.map(email =>
@@ -1512,7 +1512,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           onRefreshCounts?.()
           
           const undo = async () => {
-            await fetch(`http://localhost:5050/api/emails/${emailId}/delete`, {
+            await fetch(`/api/emails/${emailId}/delete`, {
               method: 'PUT', headers: { Authorization: `Bearer ${token}` },
             })
             fetchAllMails()
@@ -1532,7 +1532,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     e.stopPropagation()
     if (!emailId) return
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/permanent`, {
+      const response = await fetch(`/api/emails/${emailId}/permanent`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1566,7 +1566,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const newReadStatus = !isRead;
 
     try {
-        const response = await fetch(`http://localhost:5050/api/emails/${emailId}/read`, {
+        const response = await fetch(`/api/emails/${emailId}/read`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -1592,7 +1592,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     if (!emailId) return;
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/mute`, {
+      const response = await fetch(`/api/emails/${emailId}/mute`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1617,7 +1617,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
     try {
       if (action === 'archive') {
-        await fetch('http://localhost:5050/api/emails/batch', {
+        await fetch(`/api/emails/batch`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ids, action: 'archive' }),
@@ -1626,7 +1626,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
         setAllEmails(allEmails.filter(email => !selectedEmails.has(email.id)));
         setTotalEmails(prev => Math.max(0, prev - archivedEmails.length));
         const undoArchive = async () => {
-          await fetch('http://localhost:5050/api/emails/batch', {
+          await fetch(`/api/emails/batch`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ ids, action: 'archive' }),
@@ -1638,7 +1638,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
       showToast(`${ids.length} conversation(s) ${type === 'archived' || type === 'archive' ? 'moved to Inbox' : 'archived'}`, undoArchive);
         onRefreshCounts?.();
       } else if (action === 'delete') {
-        await fetch('http://localhost:5050/api/emails/batch', {
+        await fetch(`/api/emails/batch`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ids, action: 'delete' }),
@@ -1666,7 +1666,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
       ids.forEach(id => window.dispatchEvent(new CustomEvent('chatmail:draftDeleted', { detail: { draftId: id } })))
     } else if (action === 'restore') {
       await Promise.all(ids.map(id =>
-        fetch(`http://localhost:5050/api/emails/${id}/restore`, {
+        fetch(`/api/emails/${id}/restore`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -1685,7 +1685,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
       window.dispatchEvent(new Event('mailRefresh'));
     } else if (action === 'permanent_delete') {
       await Promise.all(ids.map(id =>
-        fetch(`http://localhost:5050/api/emails/${id}/permanent`, {
+        fetch(`/api/emails/${id}/permanent`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -1705,7 +1705,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           return em && em.folder !== 'sent' && em.folder !== 'drafts' && !em.isScheduled;
         });
         if (validIds.length > 0) {
-          await fetch('http://localhost:5050/api/emails/batch', {
+          await fetch(`/api/emails/batch`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ ids: validIds, action: 'read', value }),
@@ -1725,7 +1725,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           onRefreshCounts?.();
         }
       } else if (action === 'star') {
-        await fetch('http://localhost:5050/api/emails/batch', {
+        await fetch(`/api/emails/batch`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ ids, action: 'star', value }),
@@ -1736,7 +1736,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
         showToast(`${ids.length} conversation(s) ${value ? 'starred' : 'unstarred'}`, undefined);
       } else if (action === 'spam') {
         await Promise.all(ids.map(id =>
-          fetch(`http://localhost:5050/api/emails/${id}/spam`, {
+          fetch(`/api/emails/${id}/spam`, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}` },
           })
@@ -1746,7 +1746,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
         setTotalEmails(prev => Math.max(0, prev - spamEmails.length));
         const undoSpam = async () => {
           await Promise.all(ids.map(id =>
-            fetch(`http://localhost:5050/api/emails/${id}/spam`, {
+            fetch(`/api/emails/${id}/spam`, {
               method: 'PUT',
               headers: { Authorization: `Bearer ${token}` },
             })
@@ -1797,7 +1797,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
     try {
       await Promise.all(ids.map(id =>
-        fetch(`http://localhost:5050/api/emails/${id}/snooze`, {
+        fetch(`/api/emails/${id}/snooze`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ hours }),
@@ -1834,7 +1834,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
     try {
       await Promise.all(ids.map(id =>
-        fetch(`http://localhost:5050/api/emails/${id}/mute`, {
+        fetch(`/api/emails/${id}/mute`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ is_muted: true }),
@@ -1859,7 +1859,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
     try {
       await Promise.all(ids.map(id =>
-        fetch(`http://localhost:5050/api/emails/${id}/mute`, {
+        fetch(`/api/emails/${id}/mute`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ is_muted: false }),
@@ -1915,7 +1915,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined)
     if (ids.length === 0) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_archived: nextArchived }) })))
       setAllEmails(prev => prev.map(e => ids.includes(e.id) ? { ...e, isArchived: nextArchived } : e))
       showToast(`${ids.length} conversation(s) ${nextArchived ? 'archived' : 'unarchived'}`, undefined)
       onRefreshCounts?.()
@@ -1927,7 +1927,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined)
     if (ids.length === 0) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/spam`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_spam: nextSpam }) })))
       setAllEmails(prev => prev.map(e => ids.includes(e.id) ? { ...e, isSpam: nextSpam } : e))
       showToast(`${ids.length} conversation(s) ${nextSpam ? 'marked as spam' : 'not spam'}`, undefined)
       onRefreshCounts?.()
@@ -1939,7 +1939,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined)
     if (ids.length === 0) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/report`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_report: nextReport }) })))
       setAllEmails(prev => prev.map(e => ids.includes(e.id) ? { ...e, isReport: nextReport } : e))
       showToast(`${ids.length} conversation(s) ${nextReport ? 'reported' : 'unreported'}`, undefined)
       setSelectedEmails(new Set())
@@ -1950,7 +1950,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined)
     if (ids.length === 0) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/pin`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ is_pinned: nextPinned }) })))
       setAllEmails(prev => prev.map(e => ids.includes(e.id) ? { ...e, isPinned: nextPinned } : e))
       showToast(`${ids.length} conversation(s) ${nextPinned ? 'pinned' : 'unpinned'}`, undefined)
       setSelectedEmails(new Set())
@@ -1964,7 +1964,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     const ids = Array.from(selectedEmails).filter((id): id is number => id !== undefined)
     if (ids.length === 0) return
     try {
-      await Promise.all(ids.map(id => fetch(`http://localhost:5050/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
+      await Promise.all(ids.map(id => fetch(`/api/emails/${id}/label`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ label_name: labelName }) })))
       fetchAllMails()
       showToast(`${ids.length} conversation(s) moved to ${labelName}`, undefined)
       setSelectedEmails(new Set())
@@ -2053,7 +2053,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     setSnoozeMenuPosition(null)
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
+      const response = await fetch(`/api/emails/${emailId}/snooze`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -2074,7 +2074,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           const undoUnsnooze = async () => {
             if (originalSnoozedUntil) {
               const reSnoozeHours = (new Date(originalSnoozedUntil).getTime() - Date.now()) / (1000 * 60 * 60)
-              await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
+              await fetch(`/api/emails/${emailId}/snooze`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ hours: Math.max(reSnoozeHours, 0.01) }),
@@ -2100,7 +2100,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
           })
           fetchAllMails()
           const undo = async () => {
-            await fetch(`http://localhost:5050/api/emails/${emailId}/snooze`, {
+            await fetch(`/api/emails/${emailId}/snooze`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
@@ -2127,7 +2127,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     if (email && (email.folder === 'sent' || email.folder === 'drafts' || email.isScheduled)) return
 
     try {
-      const response = await fetch(`http://localhost:5050/api/emails/${emailId}/spam`, {
+      const response = await fetch(`/api/emails/${emailId}/spam`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -2143,7 +2143,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
         }
 
         const undo = async () => {
-          await fetch(`http://localhost:5050/api/emails/${emailId}/spam`, {
+          await fetch(`/api/emails/${emailId}/spam`, {
             method: 'PUT',
             headers: { Authorization: `Bearer ${token}` },
           })
@@ -2205,7 +2205,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     setMoveMenuPosition(null)
 
     try {
-      await fetch(`http://localhost:5050/api/emails/${emailId}/label`, {
+      await fetch(`/api/emails/${emailId}/label`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ label_name: targetLabel }),
@@ -2219,7 +2219,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
 
       const undoLabel = (type === 'label' && labelName) ? decodeURIComponent(labelName) : null;
       const undo = async () => {
-        await fetch(`http://localhost:5050/api/emails/${emailId}/label`, {
+        await fetch(`/api/emails/${emailId}/label`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ label_name: undoLabel }),
@@ -2444,7 +2444,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
     if (!isExpanded && !childEmailsMap.has(fullName)) {
       setLoadingChildSections(prev => new Set(prev).add(fullName))
       try {
-        const res = await fetch(`http://localhost:5050/api/labels/${encodeURIComponent(fullName)}?page=1&limit=50`, {
+        const res = await fetch(`/api/labels/${encodeURIComponent(fullName)}?page=1&limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (res.ok) {
@@ -3688,7 +3688,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                 <Star size={18} fill={(type !== 'delete' && !email.isDeleted) && email.isStarred ? 'currentColor' : 'none'} />
               </button>
               {email.isPinned && (
-                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, marginLeft: '2px', transform: 'rotate(-45deg)' }} title="Pinned" />
+                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, marginLeft: '2px', transform: 'rotate(-45deg)' }}><title>Pinned</title></Pin>
               )}
               <div className="email-from">
                 {type === 'drafts' || email.folder === 'drafts'
@@ -3772,7 +3772,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                   <button className="action-btn archive-btn" onClick={async (e) => {
                     e.stopPropagation();
                     try {
-                      const response = await fetch('http://localhost:5050/api/emails/batch', {
+                      const response = await fetch(`/api/emails/batch`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ ids: [email.id], action: 'archive' }),
@@ -3782,7 +3782,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                         setAllEmails(allEmails.filter(e => e.id !== email.id));
                         setTotalEmails(prev => Math.max(0, prev - 1));
                         const undoArchive = async () => {
-                          await fetch('http://localhost:5050/api/emails/batch', {
+                          await fetch(`/api/emails/batch`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                             body: JSON.stringify({ ids: [email.id], action: 'archive' }),
@@ -4241,7 +4241,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                 if (selectionMode) { handleSelectEmail(email.id); return; }
                                 if (!email.isRead && email.id && email.folder !== 'sent' && email.folder !== 'drafts' && !email.isScheduled) {
                                   try {
-                                    await fetch(`http://localhost:5050/api/emails/${email.id}/read`, {
+                                    await fetch(`/api/emails/${email.id}/read`, {
                                       method: 'PUT',
                                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                       body: JSON.stringify({ is_read: true }),
@@ -4279,7 +4279,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                   e.stopPropagation()
                                   if (!email.id) return
                                   try {
-                                    await fetch(`http://localhost:5050/api/emails/${email.id}/star`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
+                                    await fetch(`/api/emails/${email.id}/star`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
                                     updateChildEmail(childFullName, email.id, { isStarred: !email.isStarred })
                                   } catch (_) {}
                                 }}
@@ -4288,7 +4288,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                 <Star size={18} fill={email.isStarred ? 'currentColor' : 'none'} />
                               </button>
                               {email.isPinned && (
-                                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, marginLeft: '2px', transform: 'rotate(-45deg)' }} title="Pinned" />
+                                <Pin size={16} style={{ color: '#4caf50', flexShrink: 0, marginLeft: '2px', transform: 'rotate(-45deg)' }}><title>Pinned</title></Pin>
                               )}
                               <div className="email-from">
                                 {email.folder === 'drafts'
@@ -4325,11 +4325,11 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                 <button className="action-btn trash-btn" onClick={async (e) => {
                                   e.stopPropagation()
                                   try {
-                                    const res = await fetch(`http://localhost:5050/api/emails/${email.id}/delete`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
+                                    const res = await fetch(`/api/emails/${email.id}/delete`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
                                     if (res.ok) {
                                       removeChildEmail(childFullName, email.id)
                                       showToast('Conversation moved to Deleted', async () => {
-                                        await fetch(`http://localhost:5050/api/emails/${email.id}/delete`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
+                                        await fetch(`/api/emails/${email.id}/delete`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } })
                                       })
                                     }
                                   } catch (_) {}
@@ -4342,7 +4342,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                     if (!email.id) return
                                     const newRead = !email.isRead
                                     try {
-                                      await fetch(`http://localhost:5050/api/emails/${email.id}/read`, {
+                                      await fetch(`/api/emails/${email.id}/read`, {
                                         method: 'PUT',
                                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                         body: JSON.stringify({ is_read: newRead }),
@@ -4367,7 +4367,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                     e.stopPropagation();
                                     if (!email.id) return;
                                     try {
-                                      const response = await fetch('http://localhost:5050/api/emails/batch', {
+                                      const response = await fetch(`/api/emails/batch`, {
                                         method: 'PUT',
                                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                         body: JSON.stringify({ ids: [email.id], action: 'archive' }),
@@ -4375,7 +4375,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                                       if (response.ok) {
                                         removeChildEmail(childFullName, email.id);
                                         showToast('Email archived', async () => {
-                                          await fetch('http://localhost:5050/api/emails/batch', {
+                                          await fetch(`/api/emails/batch`, {
                                             method: 'PUT',
                                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                             body: JSON.stringify({ ids: [email.id], action: 'archive' }),
@@ -5122,7 +5122,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                   try {
                     const payload: any = { name: clLabelName, color: clLabelColor || '#607d8b' }
                     if (clParentId) payload.parent_label_id = clParentId
-                    const res = await fetch('http://localhost:5050/api/custom-labels', {
+                    const res = await fetch(`/api/custom-labels`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify(payload),
@@ -5132,7 +5132,7 @@ export default function AllMailsPage({ token, onViewEmail, onReply, type = 'all'
                       // Fetch fresh labels so the new label is available for display and path computation
                       let freshLabels = labels
                       try {
-                        const labelsRes = await fetch('http://localhost:5050/api/custom-labels', {
+                        const labelsRes = await fetch(`/api/custom-labels`, {
                           headers: { Authorization: `Bearer ${token}` },
                         })
                         if (labelsRes.ok) {

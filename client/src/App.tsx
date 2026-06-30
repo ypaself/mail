@@ -56,7 +56,6 @@ import {
   Users,
   FileCode,
   MoreHorizontal,
-  Layers,
   Video,
   StickyNote,
   Sheet,
@@ -95,8 +94,24 @@ import {
   ListFilter,
   ZoomIn,
   List,
-  ArrowLeftRight
+  ArrowLeftRight,
+  GitBranch,
+  GitCommit
 } from 'lucide-react'
+
+const GroupsIcon = ({ size = 22 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* left half person */}
+    <path d="M6,3.8 A3.2,3.2 0 0,0 6,10.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    <path d="M0,19 A6,6 0 0,1 6,13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    {/* right half person */}
+    <path d="M18,3.8 A3.2,3.2 0 0,1 18,10.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    <path d="M24,19 A6,6 0 0,0 18,13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    {/* middle full person */}
+    <circle cx="12" cy="7" r="3.2" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M6,19 A6,6 0 0,1 18,19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+)
 
 const getDynamicSnoozeOptions = () => {
   const now = new Date();
@@ -130,6 +145,10 @@ interface Email {
   folder?: string
   isRead?: boolean
   isDraft?: boolean
+  // Set when this email came from a group's Emails tab (GroupsPage) — routes the chat
+  // view to the group's dedicated shared thread instead of trying to match an individual
+  // contact against the literal to/from address, which has no conversation of its own.
+  groupEmail?: string
 }
 
 interface LabelNode {
@@ -231,6 +250,13 @@ function App() {
   const [chatReplyMessage, setChatReplyMessage] = useState<string | null>(null)
   const [chatReplyData, setChatReplyData] = useState<{ action: 'reply' | 'replyAll' | 'forward'; subject: string; from: string; to: string; body: string; date: string; sourceMessageId?: number } | null>(null)
   const [chatComposeRecipients, setChatComposeRecipients] = useState<{ to: string[]; subject: string; groupLabel?: string; groupId?: number } | null>(null)
+  // Tracks "compose to group" sessions so the Groups app-bar icon stays highlighted
+  // instead of Mail, even though the compose window itself renders inside the mail/chat view.
+  const [groupComposeActive, setGroupComposeActive] = useState(false)
+  // True while chatViewContact is a group's thread opened from the Groups page — keeps
+  // GroupsPage (and its group list panel) mounted with the thread embedded in its main
+  // panel, instead of the thread taking over the whole screen like an individual DM does.
+  const [groupChatViewActive, setGroupChatViewActive] = useState(false)
   const [highlightedEmailId, setHighlightedEmailId] = useState<number | null>(() => {
     const saved = sessionStorage.getItem('highlightedEmailId')
     return saved ? parseInt(saved, 10) : null
@@ -298,6 +324,7 @@ function App() {
   const [customLabels, setCustomLabels] = useState<LabelNode[]>([])
   const [upcomingScheduledEmail, setUpcomingScheduledEmail] = useState<{ date: string, scheduledFor: string } | null>(null)
   const [upcomingScheduledCount, setUpcomingScheduledCount] = useState(0)
+  const [groupsScheduledCount, setGroupsScheduledCount] = useState(0)
   const [labelPageKey, setLabelPageKey] = useState(0)
   const [expandedLabelGroups, setExpandedLabelGroups] = useState<Set<number>>(() => {
     // Load expanded labels from localStorage on mount
@@ -424,7 +451,10 @@ function App() {
   const [savedFiles, setSavedFiles] = useState<Array<{ name: string; size: number; dataUrl?: string; date?: string; emailId?: number; emailSubject?: string; emailFrom?: string; emailTo?: string; emailFolder?: string; emailIsScheduled?: boolean; emailLabelName?: string; emailLabelColor?: string }>>([])
   const [filePreview, setFilePreview] = useState<{name: string, dataUrl?: string} | null>(null)
   const [fileSearchQuery, setFileSearchQuery] = useState('')
-  const [fileCategory, setFileCategory] = useState<'all' | 'documents' | 'media'>('all')
+  const [fileCategory, setFileCategory] = useState<'all' | 'documents' | 'media' | 'git'>('all')
+  const [gitCommits, setGitCommits] = useState<Array<{ hash: string; shortHash: string; author: string; date: string; message: string }>>([])
+  const [gitLogLoading, setGitLogLoading] = useState(false)
+  const [gitLogError, setGitLogError] = useState<string | null>(null)
   const [chatMailMoveOpen, setChatMailMoveOpen] = useState(false)
   const [chatMailMovePos, setChatMailMovePos] = useState<{ top: number; right: number } | null>(null)
   const [chatMailZoomOpen, setChatMailZoomOpen] = useState(false)
@@ -527,6 +557,10 @@ function App() {
   // each ChatMailPage instance watches this to auto re-minimize its own expanded floating
   // panel the instant the user navigates anywhere else.
   const navKey = `${chatViewContact || ''}|${location.pathname}`
+  // True when the active thread is a group's conversation opened from the Groups page —
+  // it renders embedded inside GroupsPage's main panel instead of the full-bleed view
+  // the generic per-contact map gives every other contact thread.
+  const isEmbeddedGroupChat = groupChatViewActive && !!chatViewContact && location.pathname === '/groups'
 
 
 
@@ -543,6 +577,14 @@ function App() {
     setUserEmail(null)
     localStorage.removeItem('token')
     localStorage.removeItem('userEmail')
+    // Clear leftover Chat Mail compose/draft session state so the next login
+    // doesn't inherit a stale chat_draftId and wrongly highlight Drafts
+    // alongside Chat Mail as the active sidebar section (see App.tsx:1109).
+    ;['chat_viewMode', 'chat_selectedConversation', 'chat_inputValue', 'chat_subjectValue',
+      'chat_toEmails', 'chat_toInput', 'chat_ccEmails', 'chat_ccInput', 'chat_bccEmails',
+      'chat_bccInput', 'chat_showCc', 'chat_showBcc', 'chat_draftId', 'chat_attachments',
+      'chat_replyEmailCard', 'chat_folderViewMode', 'chat_persistedListTab',
+      'chatMailCompose', 'chatMailReturnPath'].forEach(k => sessionStorage.removeItem(k))
     navigate('/login')
   }
 
@@ -555,10 +597,12 @@ function App() {
       navigate('/chatmail', { state: { fromDraft: true } })
       return
     }
-    // Open Chat Window View with the contact
+    // Open Chat Window View with the contact — for a group email, route to the group's
+    // own dedicated thread (keyed by its address) instead of an individual member's.
     const isOutgoing = email.from?.toLowerCase() === (userEmail || '').toLowerCase() || email.folder === 'sent'
-    const contact = isOutgoing ? email.to : email.from
+    const contact = email.groupEmail || (isOutgoing ? email.to : email.from)
     setChatViewContact(contact)
+    setGroupChatViewActive(!!email.groupEmail)
     setHighlightedEmailId(email.id ?? null)
     setOpenedEmailId(email.id ?? null)
   }
@@ -591,12 +635,39 @@ function App() {
 
   // "Compose to group" — opens the Chat Mail composer (instead of the plain Compose page)
   // pre-filled with every group member as a recipient, same multi-recipient model as before.
-  const handleComposeToGroupViaChat = (to: string[], subject: string, groupLabel: string, groupId: number) => {
-    setChatComposeRecipients({ to, subject, groupLabel, groupId })
+  const handleComposeToGroupViaChat = (to: string[], subject: string, groupLabel: string, groupId: number, groupEmail: string, hasHistory: boolean) => {
+    // Remember we're coming from the Groups page so the compose window's back button
+    // (and post-send return) lands back on /groups instead of the Chat Mail list.
+    chatMailReturnPath.current = location.pathname
+    sessionStorage.setItem('chatMailReturnPath', location.pathname)
     setActiveApp('mail')
+    setSidebarCollapsed(true)
+    // The group already has a thread — open it directly (full history + locked recipient
+    // chip) instead of a blank compose session, same as clicking one of its emails does.
+    // Stays on /groups (no navigate) so GroupsPage keeps its group list panel visible
+    // alongside the thread instead of handing the whole screen to Chat Mail.
+    if (hasHistory && groupEmail) {
+      setChatViewContact(groupEmail)
+      setGroupChatViewActive(true)
+      setHighlightedEmailId(null)
+      setOpenedEmailId(null)
+      return
+    }
+    setChatComposeRecipients({ to, subject, groupLabel, groupId })
+    setGroupComposeActive(true)
     setChatMailCompose(true)
     setChatViewContact(null)
     navigate('/chatmail')
+  }
+
+  // Closes a group thread embedded in GroupsPage's main panel, returning it to its
+  // normal tabs view without leaving /groups.
+  const handleCloseGroupChatView = () => {
+    setChatViewContact(null)
+    setGroupChatViewActive(false)
+    setHighlightedEmailId(null)
+    setChatReplyMessage(null)
+    setChatReplyData(null)
   }
 
   const [emailReadUpdate, setEmailReadUpdate] = useState<{ emailId: number; isRead: boolean } | null>(null)
@@ -629,7 +700,7 @@ function App() {
   const fetchCustomLabels = async (): Promise<LabelNode[]> => {
     if (!token) return []
     try {
-      const response = await fetch('http://localhost:5050/api/custom-labels', {
+      const response = await fetch(`/api/custom-labels`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (response.ok) {
@@ -661,10 +732,10 @@ function App() {
 
       // Fetch accurate total + unread counts in one query, plus scheduled for upcoming email detection
       const [countsRes, scheduledRes, sentRes, snoozedRes] = await Promise.all([
-        fetch('http://localhost:5050/api/counts', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('http://localhost:5050/api/scheduled', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('http://localhost:5050/api/sent?page=1&limit=1', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('http://localhost:5050/api/snoozed?limit=9999', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/counts`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/scheduled?excludeGroups=true`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/sent?page=1&limit=1`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/snoozed?limit=9999`, { headers: { Authorization: `Bearer ${token}` } }),
       ])
 
       if (countsRes.status === 401 || countsRes.status === 403) {
@@ -678,10 +749,13 @@ function App() {
 
       if (countsRes.ok) {
         const counts = await countsRes.json()
-        for (const [key, val] of Object.entries(counts) as [string, { total: number; unread: number }][]) {
+        for (const [key, val] of Object.entries(counts) as [string, { total: number; unread: number; scheduled?: number }][]) {
           unreadCountsMap[key] = val.unread
           totalCountsMap[key] = val.total
           receivedTotalCountsMap[key] = val.total
+        }
+        if (counts.groups && counts.groups.scheduled !== undefined) {
+          setGroupsScheduledCount(counts.groups.scheduled)
         }
       }
 
@@ -724,7 +798,7 @@ function App() {
             const currentPath = [...pathNames, label.name]
             const fullPath = currentPath.join(' / ')
             try {
-              const response = await fetch(`http://localhost:5050/api/labels/${encodeURIComponent(fullPath)}`, {
+              const response = await fetch(`/api/labels/${encodeURIComponent(fullPath)}`, {
                 headers: { Authorization: `Bearer ${token}` },
               })
               if (response.ok) {
@@ -912,7 +986,7 @@ function App() {
 
   useEffect(() => {
     if (!token) return
-    fetch('http://localhost:5050/api/counts', { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`/api/counts`, { headers: { Authorization: `Bearer ${token}` } })
       .then(res => {
         if (res.status === 401 || res.status === 403) {
           localStorage.removeItem('token')
@@ -1063,6 +1137,8 @@ function App() {
       }
       else if ((location.state as any)?.fromDraft || sessionStorage.getItem('chat_draftId')) {
         setActiveSidebarSection('drafts')
+      } else if (groupComposeActive) {
+        setActiveSidebarSection('groups')
       } else {
         setActiveSidebarSection('')
       }
@@ -1088,7 +1164,7 @@ function App() {
     else setActiveApp('mail')
 
     if (['/allmails', '/reports', '/spam', '/delete', '/subscriptions', '/labels'].includes(path)) setMoreExpanded(true)
-  }, [location.pathname, location.state, customLabels, folderViewMode])
+  }, [location.pathname, location.state, customLabels, folderViewMode, groupComposeActive])
 
   // Auto-select category filter based on active sidebar section
   useEffect(() => {
@@ -1278,7 +1354,7 @@ function App() {
           const filesList: Array<{ name: string; size: number; dataUrl?: string, date?: string, emailId?: number, emailSubject?: string, emailFrom?: string, emailTo?: string, emailFolder?: string, emailIsScheduled?: boolean, emailLabelName?: string, emailLabelColor?: string }> = []
 
           if (token) {
-            const res = await fetch('http://localhost:5050/api/allmails?limit=1000', { headers: { Authorization: `Bearer ${token}` } })
+            const res = await fetch(`/api/allmails?limit=1000`, { headers: { Authorization: `Bearer ${token}` } })
             if (res.ok) {
               const data = await res.json()
               if (data.emails) {
@@ -1324,26 +1400,34 @@ function App() {
     }
   }, [activeApp, token])
 
+  useEffect(() => {
+    if (activeApp !== 'files' || fileCategory !== 'git' || !token) return
+    setGitLogLoading(true)
+    setGitLogError(null)
+    fetch(`/api/git/log?limit=100`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to load commit history')))
+      .then(data => setGitCommits(data.commits || []))
+      .catch(() => setGitLogError('Failed to load commit history'))
+      .finally(() => setGitLogLoading(false))
+  }, [activeApp, fileCategory, token])
+
   const handleMailBtnClick = () => {
     setActiveApp(activeApp === 'mail' ? '' as any : 'mail')
+    setGroupComposeActive(false)
     setMenuButtonClicked(true)
     setSidebarCollapsed(false)
   }
 
   const handleCalendarBtnClick = () => {
     setActiveApp(activeApp === 'calendar' ? '' as any : 'calendar')
+    setGroupComposeActive(false)
     setMenuButtonClicked(true)
     setSidebarCollapsed(false)
   }
 
   const handleContactsClick = () => {
     setActiveApp(activeApp === 'contacts' ? '' as any : 'contacts')
-    setMenuButtonClicked(true)
-    setSidebarCollapsed(false)
-  }
-
-  const handleGroupsClick = () => {
-    setActiveApp(activeApp === 'groups' ? '' as any : 'groups')
+    setGroupComposeActive(false)
     setMenuButtonClicked(true)
     setSidebarCollapsed(false)
   }
@@ -1388,6 +1472,7 @@ function App() {
     setSidebarHoverExpanded(false)
 
     setChatViewContact(null)
+    setGroupChatViewActive(false)
     setHighlightedEmailId(null)
     setOpenedEmailId(null)
     setChatMailCompose(false)
@@ -1466,8 +1551,9 @@ function App() {
     goToFolderListMode('archive')
   }
   const handleGroupsSidebarClick = () => {
-    if (folderViewMode === 'chatmail') { goToChatMailTab('group'); return }
+    if (folderViewMode === 'chatmail') { goToChatMailTab('group'); setSidebarCollapsed(true); return }
     goToFolderListMode('group')
+    setSidebarCollapsed(true)
   }
   const handleAllMailsClick = () => {
     if (folderViewMode === 'chatmail') { goToChatMailTab('allmails'); return }
@@ -1544,7 +1630,7 @@ function App() {
 
   const confirmDeleteLabel = async (labelId: number) => {
     try {
-      const response = await fetch(`http://localhost:5050/api/custom-labels/${labelId}`, {
+      const response = await fetch(`/api/custom-labels/${labelId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -1596,7 +1682,7 @@ function App() {
     showAppToast(isStarred ? 'All added to star' : 'All removed from star')
     try {
       await Promise.all(paths.map(path =>
-        fetch(`http://localhost:5050/api/labels/${encodeURIComponent(path)}/star-all`, {
+        fetch(`/api/labels/${encodeURIComponent(path)}/star-all`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_starred: isStarred })
@@ -1624,7 +1710,7 @@ function App() {
     showAppToast(isImportant ? 'All marked as important' : 'All removed from important')
     try {
       await Promise.all(paths.map(path =>
-        fetch(`http://localhost:5050/api/labels/${encodeURIComponent(path)}/important-all`, {
+        fetch(`/api/labels/${encodeURIComponent(path)}/important-all`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_important: isImportant })
@@ -1658,7 +1744,7 @@ function App() {
     showAppToast('All marked as read', () => handleMarkAllUnread(label, includeChildren))
     try {
       await Promise.all(paths.map(path =>
-        fetch(`http://localhost:5050/api/labels/${encodeURIComponent(path)}/mark-all`, {
+        fetch(`/api/labels/${encodeURIComponent(path)}/mark-all`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_read: true })
@@ -1676,7 +1762,7 @@ function App() {
     showAppToast('All marked as unread', () => handleMarkAllRead(label, includeChildren))
     try {
       await Promise.all(paths.map(path =>
-        fetch(`http://localhost:5050/api/labels/${encodeURIComponent(path)}/mark-all`, {
+        fetch(`/api/labels/${encodeURIComponent(path)}/mark-all`, {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_read: false })
@@ -1759,7 +1845,7 @@ function App() {
     window.dispatchEvent(new CustomEvent('mailBulkRead', { detail: { isRead: true, folderType: type } }))
     showAppToast('All marked as read', () => handleFolderMarkAllUnread(type))
     try {
-      await fetch(`http://localhost:5050/api/folders/${type}/mark-all`, {
+      await fetch(`/api/folders/${type}/mark-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_read: true })
       })
@@ -1773,7 +1859,7 @@ function App() {
     window.dispatchEvent(new CustomEvent('mailBulkRead', { detail: { isRead: false, folderType: type } }))
     showAppToast('All marked as unread', () => handleFolderMarkAllRead(type))
     try {
-      await fetch(`http://localhost:5050/api/folders/${type}/mark-all`, {
+      await fetch(`/api/folders/${type}/mark-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_read: false })
       })
@@ -1806,7 +1892,7 @@ function App() {
     window.dispatchEvent(new CustomEvent('mailBulkStar', { detail: { isStarred: value, folderType: type } }))
     showAppToast(value ? 'All added to star' : 'All removed from star', () => handleFolderStarAll(type, !value))
     try {
-      await fetch(`http://localhost:5050/api/folders/${type}/star-all`, {
+      await fetch(`/api/folders/${type}/star-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_starred: value })
       })
@@ -1826,7 +1912,7 @@ function App() {
     window.dispatchEvent(new CustomEvent('mailBulkImportant', { detail: { isImportant: value, folderType: type } }))
     showAppToast(value ? 'All marked as important' : 'All removed from important', () => handleFolderImportantAll(type, !value))
     try {
-      await fetch(`http://localhost:5050/api/folders/${type}/important-all`, {
+      await fetch(`/api/folders/${type}/important-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_important: value })
       })
@@ -1838,7 +1924,7 @@ function App() {
   const handleFolderRestoreAll = async () => {
     setOpenFolderMenu(null)
     try {
-      await fetch('http://localhost:5050/api/folders/delete/restore-all', {
+      await fetch(`/api/folders/delete/restore-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}` }
       })
       window.dispatchEvent(new Event('mailRefresh'))
@@ -1868,7 +1954,7 @@ function App() {
         return next
       })
       try {
-        const response = await fetch(`http://localhost:5050/api/labels/${encodeURIComponent(labelPath)}/snooze-all`, {
+        const response = await fetch(`/api/labels/${encodeURIComponent(labelPath)}/snooze-all`, {
           method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_snoozed: isSnoozed, hours: hours || 24, undo_ids: undoIds })
         })
@@ -1902,7 +1988,7 @@ function App() {
       })
     }
     try {
-      const response = await fetch(`http://localhost:5050/api/folders/${type}/snooze-all`, {
+      const response = await fetch(`/api/folders/${type}/snooze-all`, {
         method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_snoozed: isSnoozed, hours: hours || 24, undo_ids: undoIds })
       })
@@ -1920,7 +2006,7 @@ function App() {
     setOpenFolderMenu(null)
     showAppToast('Folder emptied')
     try {
-      await fetch(`http://localhost:5050/api/folders/${type}/empty`, {
+      await fetch(`/api/folders/${type}/empty`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
       })
       window.dispatchEvent(new Event('mailRefresh'))
@@ -1986,7 +2072,7 @@ function App() {
 
   const handleChangeLabelColor = async (labelId: number, color: string) => {
     try {
-      const res = await fetch(`http://localhost:5050/api/custom-labels/${labelId}`, {
+      const res = await fetch(`/api/custom-labels/${labelId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ color })
@@ -2007,7 +2093,7 @@ function App() {
     if (!window.confirm(msg)) return
     try {
       await Promise.all(paths.map(path =>
-        fetch(`http://localhost:5050/api/labels/${encodeURIComponent(path)}/emails`, {
+        fetch(`/api/labels/${encodeURIComponent(path)}/emails`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }
         })
@@ -2297,6 +2383,40 @@ function App() {
     )
   }
 
+  // Shared between the always-mounted per-contact thread map and GroupsPage's embedded
+  // chat slot so both render the exact same ChatMailPage wiring for a given contact.
+  const renderContactChatMail = (contact: string) => (
+    <ChatMailPage token={token || ''} userEmail={userEmail || ''} contactEmail={contact} highlightedEmailId={contact === chatViewContact ? highlightedEmailId : null} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} onEmailDeleteChange={handleEmailDeleteChange} externalDeleteUpdate={emailDeleteUpdate} replyData={contact === chatViewContact ? chatReplyData : null} onReplyDataLoaded={() => setChatReplyData(null)}
+      floatSlotIndex={Math.max(0, floatSlots.indexOf(contact))}
+      navKey={navKey}
+      isActiveView={contact === chatViewContact}
+      hasMinimizedStrip={hasMinimizedStrip}
+      onOpenContact={(email) => { setHighlightedEmailId(null); setChatViewContact(email); if (email !== chatViewContact) setGroupChatViewActive(false) }}
+      onMinimizedChange={(minimized) => registerMinimizedSlot(contact, minimized)}
+      onFloatingChange={(floating, draftId) => {
+        setFloatingContacts(prev => {
+          const next = new Set(prev)
+          if (floating) next.add(contact); else next.delete(contact)
+          return next
+        })
+        registerFloatSlot(contact, floating)
+        registerFloatingDraft(contact, floating, draftId)
+      }}
+      onClose={() => {
+        if (contact !== chatViewContact) return
+        setChatViewContact(null)
+        setGroupChatViewActive(false)
+        setHighlightedEmailId(null)
+        setChatReplyMessage(null)
+        setChatReplyData(null)
+        const returnPath = sessionStorage.getItem('chatMailReturnPath')
+        if (returnPath && returnPath !== '/chatmail') {
+          sessionStorage.removeItem('chatMailReturnPath')
+          navigate(returnPath)
+        }
+      }} />
+  )
+
   return (
     <ErrorBoundary>
     <>
@@ -2346,9 +2466,6 @@ function App() {
           </button>
           <button className={`app-bar-btn ${activeApp === 'contacts' ? 'active' : ''}`} title="Contacts" onClick={handleContactsClick}>
             <Users size={20} />
-          </button>
-          <button className={`app-bar-btn ${activeApp === 'groups' ? 'active' : ''}`} title="Groups" onClick={handleGroupsClick}>
-            <Layers size={20} />
           </button>
           <button className={`app-bar-btn ${activeApp === 'files' ? 'active' : ''}`} title="Files" onClick={() => { setActiveApp('files'); setMenuButtonClicked(true); setSidebarCollapsed(false); }}>
             <Folder size={20} />
@@ -3242,10 +3359,13 @@ function App() {
                 </div>
                 <div className="sidebar-folder-wrapper">
                   <button className={`sidebar-item groups ${activeSidebarSection === 'groups' || openFolderMenu === 'groups' ? 'active' : ''}`} title="Groups" onClick={handleGroupsSidebarClick}>
-                    <Users size={22} />
+                    <GroupsIcon size={22} />
                     <span>Groups</span>
                     <div className="count-container">
                       {unreadCounts.groups > 0 && <span className="unread-badge">{unreadCounts.groups}</span>}
+                      {groupsScheduledCount > 0 && (
+                        <span className="unread-badge scheduled-upcoming-badge" style={{ backgroundColor: '#fb8c00' }}>{groupsScheduledCount}</span>
+                      )}
                       {totalCounts.groups > 0 && <span className="total-count">{totalCounts.groups}</span>}
                     </div>
                   </button>
@@ -3431,43 +3551,32 @@ function App() {
                   whenever it isn't the active view. replyData is withheld while a contact
                   thread is open so this hidden instance doesn't also react to it. */}
               <div style={{ display: (!chatViewContact && location.pathname === '/chatmail') ? 'contents' : 'none' }}>
-                <ChatMailPage token={token} userEmail={userEmail || ''} isActiveView={!chatViewContact && location.pathname === '/chatmail'} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} onEmailDeleteChange={handleEmailDeleteChange} externalDeleteUpdate={emailDeleteUpdate} composeMode={chatMailCompose} draftEmail={draftEmail} onDraftLoaded={() => setDraftEmail(null)} replyData={chatViewContact ? null : chatReplyData} onReplyDataLoaded={() => setChatReplyData(null)} composeRecipients={chatViewContact ? null : chatComposeRecipients} onComposeRecipientsLoaded={() => setChatComposeRecipients(null)} onOpenContact={(email) => { setHighlightedEmailId(null); setChatViewContact(email) }} onFloatingChange={(floating, draftId) => { registerFloatSlot(MAIN_FLOAT_SLOT, floating); registerFloatingDraft(null, floating, draftId) }} onMinimizedChange={(minimized) => registerMinimizedSlot(MAIN_FLOAT_SLOT, minimized)} hasMinimizedStrip={hasMinimizedStrip} getFloatingDraftOwner={getFloatingDraftOwner} floatSlotIndex={Math.max(0, floatSlots.indexOf(MAIN_FLOAT_SLOT))} navKey={navKey} onComposeModeExit={() => { setChatMailCompose(false); setChatReplyData(null); setDraftEmail(null) }} onClose={() => { setChatMailCompose(false); setChatReplyData(null); setDraftEmail(null); const returnPath = sessionStorage.getItem('chatMailReturnPath') || chatMailReturnPath.current || '/chatmail'; chatMailReturnPath.current = '/chatmail'; sessionStorage.removeItem('chatMailReturnPath'); navigate(returnPath); }} />
+                <ChatMailPage token={token} userEmail={userEmail || ''} isActiveView={!chatViewContact && location.pathname === '/chatmail'} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} onEmailDeleteChange={handleEmailDeleteChange} externalDeleteUpdate={emailDeleteUpdate} composeMode={chatMailCompose} draftEmail={draftEmail} onDraftLoaded={() => setDraftEmail(null)} replyData={chatViewContact ? null : chatReplyData} onReplyDataLoaded={() => setChatReplyData(null)} composeRecipients={chatViewContact ? null : chatComposeRecipients} onComposeRecipientsLoaded={() => setChatComposeRecipients(null)} onOpenContact={(email) => { setHighlightedEmailId(null); setChatViewContact(email) }} onFloatingChange={(floating, draftId) => { registerFloatSlot(MAIN_FLOAT_SLOT, floating); registerFloatingDraft(null, floating, draftId) }} onMinimizedChange={(minimized) => registerMinimizedSlot(MAIN_FLOAT_SLOT, minimized)} hasMinimizedStrip={hasMinimizedStrip} getFloatingDraftOwner={getFloatingDraftOwner} floatSlotIndex={Math.max(0, floatSlots.indexOf(MAIN_FLOAT_SLOT))} navKey={navKey} onComposeModeExit={() => { setChatMailCompose(false); setChatReplyData(null); setDraftEmail(null); setGroupComposeActive(false) }} onClose={() => { setChatMailCompose(false); setChatReplyData(null); setDraftEmail(null); setGroupComposeActive(false); const returnPath = sessionStorage.getItem('chatMailReturnPath') || chatMailReturnPath.current || '/chatmail'; chatMailReturnPath.current = '/chatmail'; sessionStorage.removeItem('chatMailReturnPath'); navigate(returnPath); }} />
               </div>
               {/* One instance per contact that's either the active thread view or still has
                   a floating/minimized draft — keyed by contact email so React never reuses
-                  one contact's instance (and its floating state) for a different contact. */}
-              {Array.from(new Set([chatViewContact, ...floatingContacts].filter((c): c is string => !!c))).map(contact => (
+                  one contact's instance (and its floating state) for a different contact.
+                  The active group thread (isEmbeddedGroupChat) is excluded here — it's
+                  rendered once, inside GroupsPage's main panel, below. */}
+              {Array.from(new Set([chatViewContact, ...floatingContacts].filter((c): c is string => !!c)))
+                .filter(contact => !(isEmbeddedGroupChat && contact === chatViewContact))
+                .map(contact => (
                 <div key={contact} style={{ display: contact === chatViewContact ? 'contents' : 'none' }}>
-                  <ChatMailPage token={token} userEmail={userEmail || ''} contactEmail={contact} highlightedEmailId={contact === chatViewContact ? highlightedEmailId : null} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} onEmailDeleteChange={handleEmailDeleteChange} externalDeleteUpdate={emailDeleteUpdate} replyData={contact === chatViewContact ? chatReplyData : null} onReplyDataLoaded={() => setChatReplyData(null)}
-                    floatSlotIndex={Math.max(0, floatSlots.indexOf(contact))}
-                    navKey={navKey}
-                    isActiveView={contact === chatViewContact}
-                    hasMinimizedStrip={hasMinimizedStrip}
-                    onOpenContact={(email) => { setHighlightedEmailId(null); setChatViewContact(email) }}
-                    onMinimizedChange={(minimized) => registerMinimizedSlot(contact, minimized)}
-                    onFloatingChange={(floating, draftId) => {
-                      setFloatingContacts(prev => {
-                        const next = new Set(prev)
-                        if (floating) next.add(contact); else next.delete(contact)
-                        return next
-                      })
-                      registerFloatSlot(contact, floating)
-                      registerFloatingDraft(contact, floating, draftId)
-                    }}
-                    onClose={() => {
-                      if (contact !== chatViewContact) return
-                      setChatViewContact(null)
-                      setHighlightedEmailId(null)
-                      setChatReplyMessage(null)
-                      setChatReplyData(null)
-                      const returnPath = sessionStorage.getItem('chatMailReturnPath')
-                      if (returnPath && returnPath !== '/chatmail') {
-                        sessionStorage.removeItem('chatMailReturnPath')
-                        navigate(returnPath)
-                      }
-                    }} />
+                  {renderContactChatMail(contact)}
                 </div>
               ))}
+              {location.pathname === '/groups' && (!chatViewContact || isEmbeddedGroupChat) && (
+                <GroupsPage
+                  token={token}
+                  onViewEmail={handleViewEmail}
+                  onReply={handleOpenChatReply}
+                  onRefreshCounts={fetchUnreadCounts}
+                  onComposeToGroup={handleComposeToGroupViaChat}
+                  chatViewActive={isEmbeddedGroupChat}
+                  chatViewElement={isEmbeddedGroupChat ? renderContactChatMail(chatViewContact!) : undefined}
+                  onCloseChatView={handleCloseGroupChatView}
+                />
+              )}
               {!chatViewContact && (
                 <>
                   {location.pathname !== '/chatmail' && (
@@ -3478,7 +3587,6 @@ function App() {
                     <Route path="/snoozed" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="snoozed" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
                     <Route path="/drafts" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="drafts" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
                     <Route path="/archived" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="archived" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
-                    <Route path="/groups" element={<GroupsPage token={token} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} onRefreshCounts={fetchUnreadCounts} onComposeToGroup={handleComposeToGroupViaChat} />} />
                     <Route path="/allmails" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="all" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
                     <Route path="/scheduled" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="scheduled" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
                     <Route path="/important" element={<AllMailsPage token={token} hasMinimizedStrip={hasMinimizedStrip} onViewEmail={handleViewEmail} onReply={handleOpenChatReply} type="important" searchQuery={searchQuery} searchFilters={searchFilters} onSearch={setSearchQuery} onRefreshCounts={fetchUnreadCounts} onEmailReadChange={handleEmailReadStatusChange} externalReadUpdate={emailReadUpdate} externalDeleteUpdate={emailDeleteUpdate} openedEmailId={openedEmailId} refreshSignal={labelPageKey} />} />
@@ -3668,125 +3776,6 @@ function App() {
               </div>
             )}
 
-            {/* Groups View */}
-            {activeApp === 'groups' && (
-              <div className="groups-container">
-                <div className="groups-header">
-                  <h2>Groups</h2>
-                  <button className="create-group-btn">
-                    <Plus size={20} />
-                    <span>Create Group</span>
-                  </button>
-                </div>
-                <div className="groups-content">
-                  <div className="groups-sidebar">
-                    <div className="groups-search">
-                      <input type="text" id="groups-search" name="groups-search" placeholder="Search groups..." />
-                    </div>
-                    <div className="groups-list">
-                      <div className="group-item">
-                        <div className="group-avatar">TM</div>
-                        <div className="group-info">
-                          <div className="group-name">Team Members</div>
-                          <div className="group-count">5 members</div>
-                        </div>
-                      </div>
-                      <div className="group-item">
-                        <div className="group-avatar">PM</div>
-                        <div className="group-info">
-                          <div className="group-name">Project Managers</div>
-                          <div className="group-count">3 members</div>
-                        </div>
-                      </div>
-                      <div className="group-item">
-                        <div className="group-avatar">DP</div>
-                        <div className="group-info">
-                          <div className="group-name">Design Partners</div>
-                          <div className="group-count">4 members</div>
-                        </div>
-                      </div>
-                      <div className="group-item">
-                        <div className="group-avatar">CS</div>
-                        <div className="group-info">
-                          <div className="group-name">Client Support</div>
-                          <div className="group-count">6 members</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="groups-main">
-                    <div className="group-detail">
-                      <div className="group-header">
-                        <div className="group-detail-avatar">TM</div>
-                        <div className="group-detail-info">
-                          <h3>Team Members</h3>
-                          <p>5 members • Created 3 months ago</p>
-                        </div>
-                      </div>
-                      <div className="group-actions">
-                        <button className="action-btn">
-                          <MessageSquare size={18} />
-                          Email All
-                        </button>
-                        <button className="action-btn">
-                          <Plus size={18} />
-                          Add Member
-                        </button>
-                        <button className="action-btn">
-                          <FileText size={18} />
-                          Settings
-                        </button>
-                      </div>
-                      <div className="group-members-section">
-                        <h4>Members ({5})</h4>
-                        <div className="members-list">
-                          <div className="member-item">
-                            <div className="member-avatar">JD</div>
-                            <div className="member-info">
-                              <div className="member-name">John Doe</div>
-                              <div className="member-email">john@example.com</div>
-                            </div>
-                          </div>
-                          <div className="member-item">
-                            <div className="member-avatar">SS</div>
-                            <div className="member-info">
-                              <div className="member-name">Sarah Smith</div>
-                              <div className="member-email">sarah@example.com</div>
-                            </div>
-                          </div>
-                          <div className="member-item">
-                            <div className="member-avatar">MJ</div>
-                            <div className="member-info">
-                              <div className="member-name">Mike Johnson</div>
-                              <div className="member-email">mike@example.com</div>
-                            </div>
-                          </div>
-                          <div className="member-item">
-                            <div className="member-avatar">EB</div>
-                            <div className="member-info">
-                              <div className="member-name">Emily Brown</div>
-                              <div className="member-email">emily@example.com</div>
-                            </div>
-                          </div>
-                          <div className="member-item">
-                            <div className="member-avatar">AM</div>
-                            <div className="member-info">
-                              <div className="member-name">Alex Miller</div>
-                              <div className="member-email">alex@example.com</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="group-description-section">
-                        <h4>Description</h4>
-                        <p>A group for all team members to collaborate and communicate effectively. Everyone in this group can participate in team discussions and activities.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Files View */}
             {activeApp === 'files' && (
               <div className="files-container">
@@ -3813,9 +3802,36 @@ function App() {
                       <div className={`file-category ${fileCategory === 'all' ? 'active' : ''}`} onClick={() => setFileCategory('all')}><Folder size={18} /> All Files</div>
                       <div className={`file-category ${fileCategory === 'documents' ? 'active' : ''}`} onClick={() => setFileCategory('documents')}><FileText size={18} /> Documents</div>
                       <div className={`file-category ${fileCategory === 'media' ? 'active' : ''}`} onClick={() => setFileCategory('media')}><Video size={18} /> Media</div>
+                      <div className={`file-category ${fileCategory === 'git' ? 'active' : ''}`} onClick={() => setFileCategory('git')}><GitBranch size={18} /> Git History</div>
                     </div>
                   </div>
                   <div className="files-main">
+                    {fileCategory === 'git' ? (
+                      <div className="git-log-list">
+                        {gitLogLoading && <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Loading commit history...</div>}
+                        {gitLogError && <div style={{ textAlign: 'center', padding: '40px', color: '#c62828' }}>{gitLogError}</div>}
+                        {!gitLogLoading && !gitLogError && gitCommits.length === 0 && (
+                          <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}><GitBranch size={48} style={{ marginBottom: '16px', opacity: 0.5 }} /><h3>No commits found</h3></div>
+                        )}
+                        {!gitLogLoading && !gitLogError && gitCommits
+                          .filter(c => !fileSearchQuery || c.message.toLowerCase().includes(fileSearchQuery.toLowerCase()) || c.author.toLowerCase().includes(fileSearchQuery.toLowerCase()))
+                          .map(commit => (
+                            <div key={commit.hash} className="git-log-item">
+                              <GitCommit size={16} style={{ color: '#888', flexShrink: 0 }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div className="git-log-message">{commit.message}</div>
+                                <div className="git-log-meta">
+                                  <span>{commit.author}</span>
+                                  <span>·</span>
+                                  <span>{new Date(commit.date).toLocaleString()}</span>
+                                  <span>·</span>
+                                  <span className="git-log-hash">{commit.shortHash}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
                     <div className="files-grid">
                       {savedFiles.filter(f => {
                         if (fileSearchQuery && !f.name.toLowerCase().includes(fileSearchQuery.toLowerCase())) return false;
@@ -3920,6 +3936,7 @@ function App() {
                       })}
                       {savedFiles.length === 0 && <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#999' }}><Folder size={48} style={{ marginBottom: '16px', opacity: 0.5 }} /><h3>No files yet</h3><p>Attachments from your sent and received emails will appear here.</p></div>}
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -4222,7 +4239,7 @@ function App() {
                 setClLoading(true); setClError('')
                 try {
                   if (clIsRenameMode && clRenameLabelId) {
-                    const res = await fetch(`http://localhost:5050/api/custom-labels/${clRenameLabelId}`, {
+                    const res = await fetch(`/api/custom-labels/${clRenameLabelId}`, {
                       method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify({ name: clLabelName.trim(), color: clLabelColor || '#607d8b', parent_label_id: clParentId ?? null }),
                     })
@@ -4257,7 +4274,7 @@ function App() {
                   } else {
                     const payload: any = { name: clLabelName, color: clLabelColor || '#607d8b' }
                     if (clParentId) payload.parent_label_id = clParentId
-                    const res = await fetch('http://localhost:5050/api/custom-labels', {
+                    const res = await fetch(`/api/custom-labels`, {
                       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                       body: JSON.stringify(payload),
                     })

@@ -32,7 +32,7 @@ export default function EmailPage({ token, selectedEmail, onBack }: EmailPagePro
 
     setSending(true)
     try {
-      const response = await fetch('http://localhost:5050/api/send-email', {
+      const response = await fetch(`/api/send-email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

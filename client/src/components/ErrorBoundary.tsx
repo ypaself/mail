@@ -44,7 +44,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     }
 
     // Example: Reporting to your custom backend endpoint
-    fetch('http://localhost:5050/api/log-error', {
+    fetch(`/api/log-error`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

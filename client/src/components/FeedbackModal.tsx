@@ -22,7 +22,7 @@ export default function FeedbackModal({ token, onClose }: Props) {
     setSending(true)
     setError('')
     try {
-      const r = await fetch('http://localhost:5050/api/feedback', {
+      const r = await fetch(`/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ category, subject, message })
